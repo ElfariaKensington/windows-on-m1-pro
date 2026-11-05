@@ -2,8 +2,8 @@
 
 The target is the 2021 16-inch MacBook Pro, `MacBookPro18,1`, board `J316s`,
 SoC `T6000`, with two Icestorm and eight Firestorm cores. The changes here
-prepare the hypervisor for that CPU topology. The J316s firmware and native
-Windows Setup milestone are still open.
+prepare the hypervisor for that CPU topology and build a standalone Setup
+candidate. Native entry and the Setup screen still need hardware validation.
 
 ## Evidence for the interrupt controller change
 
@@ -28,27 +28,72 @@ the 64-bit redistributor base `0x5100000000` and length `0x140000`.
 PSCI already derives the affinities from the Apple device tree and owns
 secondary CPU startup. m1n1 owns the virtual GIC and physical AIC routes.
 
-## Remaining work before native Setup
+## Setup firmware and isolation
 
-- **Firmware and memory.** Add a J316s guest layout and a matching Mu target.
-  Check guest RAM, firmware and boot arguments, the low-memory alias, and the
-  framebuffer against the live boot memory map. Aurora's J316s target defaults
-  to native AIC firmware with a different Windows startup path, while this
-  project runs Mu behind m1n1's virtual GIC. Use Aurora's board evidence to
-  inform the port and verify the compiled ACPI against the virtual GIC.
-- **Installer media and display.** For the first milestone, use a RAM-backed
-  ARM64 Windows PE installer and a basic framebuffer. Review the DCP handoff
-  on this board and keep the GPU driver out of the first build. Reuse the
-  existing preloaded ramdisk format after giving it a validated J316s
-  reservation. [Microsoft Windows PE](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/winpe-intro)
-- **Storage and DMA.** The J313 autonomous path maps broad Apple MMIO ranges
-  and backs its guest NVMe controller with the physical SSD. A J316s
-  installer-only profile needs an explicit MMIO allowlist that excludes
-  internal storage and its DMA control paths, and must omit the synthetic
-  NVMe controller. Before enabling physical USB, derive its port resources
-  from the J316s ADT and verify the AIC2 and DART routing separately.
+The Mu build target is `J316sSetupPkg`. Its ACPI namespace describes the ten
+CPUs. The firmware volume uses RAM disk, GIC and framebuffer drivers, with
+the physical storage, PCI, USB and DART drivers outside the image. The
+packer checks the compiled MADT and the firmware volume's module list
+before it writes an image.
 
-The first hardware checkpoint would be the Windows Setup UI with the SSD
-absent from the guest. It requires a separate test Mac or a verified DFU
-recovery path. The J313 ESP installer and launch paths reject this board.
-No native boot was attempted on the target during this work.
+The m1n1 `J316S_SETUP=1` build recognizes the separate `ASIJ316S` payload.
+It validates board identity, image bounds and checksums before reserving
+guest RAM from the live boot memory map. It rejects overlap with the
+protected-memory carveouts and the existing framebuffer. The guest uses
+a private framebuffer that m1n1 copies to the existing panel surface.
+
+EL2 compares the stage-2 mapping log against an exact allowlist before
+guest entry. It permits the reserved RAM and its low alias, software
+hooks for the virtual GIC and emulated serial port, and no physical MMIO.
+The J313 disk bridge and writable host ADT alias are outside this path.
+This profile aims for the first visible Setup screen. It includes the
+ARM64 Setup WIM and boot files on a RAM disk. The install image and
+physical keyboard, trackpad and GPU paths are outside that milestone.
+[Microsoft Windows PE](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/winpe-intro)
+
+## Reproduce the offline checks
+
+Use the Project Mu environment described in BUILD.md. Add
+`--j316s-setup` to the build command. The other Mu setup and update
+commands use the same platform builder.
+
+```sh
+stuart_build -c Platform/MacBookAirMid2020Pkg/PlatformBuild.py \
+  --j316s-setup TOOL_CHAIN_TAG=CLANGPDB TARGET=DEBUG
+```
+
+Build the raw m1n1 ELF with the board profile. This candidate was compiled
+with Clang 18 in the ARM64 build container. The J313 release instructions
+specify a different compiler, and the J316s candidate has no qualified
+compiler or firmware combination yet.
+
+```sh
+make -C m1n1_windows J316S_SETUP=1 USE_CLANG=1 ARCH=aarch64-none-elf \
+  TOOLCHAIN=/usr/lib/llvm-18/bin/ LLDDIR=/usr/lib/llvm-18/bin/ build/m1n1.bin
+```
+
+From the repository root, build the Setup media using Python 3.11 or newer,
+7-Zip and mtools. Use the hash Microsoft publishes for the source ISO.
+The packer also needs `llvm-nm` and `llvm-objcopy`.
+
+```sh
+python3 tools/build_j316s_setup_media.py windows-arm64.iso setup-arm64.img \
+  --iso-sha256 <microsoft-iso-sha256>
+python3 tools/pack_j316s_setup.py \
+  --mu-build mu/Build/J316sSetup-AARCH64/DEBUG_CLANGPDB \
+  --loader-elf m1n1_windows/build/m1n1-raw.elf \
+  --media setup-arm64.img --output J316s-Setup-unqualified.bin
+```
+
+## Hardware qualification
+
+The target Mac has the stock internal partition layout. A native test
+would require provisioning a separate Apple-authorized boot environment
+before the loader can run. The image is also larger than the ESP in
+Asahi's standard example layout. The stage-2 restrictions apply after
+m1n1 starts and cannot protect the process of setting up that boot
+environment. With no second Mac available for DFU recovery, the
+candidate was kept as an ordinary file. The first native checkpoint
+remains a visible Setup screen with the SSD absent from Windows.
+[Asahi boot layout](https://asahilinux.org/docs/platform/open-os-interop/) ·
+[Apple DFU recovery requirements](https://support.apple.com/en-us/108900)
