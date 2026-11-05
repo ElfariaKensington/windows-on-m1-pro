@@ -134,6 +134,10 @@ from tools.launch_contract import encode_record
 iface = UartInterface()
 p = M1N1Proxy(iface, debug=False)
 bootstrap_port(iface, p)
+u = ProxyUtils(p, heap_size=768 * 1024 * 1024)
+if "J313AP" not in getattr(u.adt, "compatible", ()):
+    ap.error("this launcher uses the J313 guest layout and requires a J313 Mac")
+
 cpufreq_result = p.cpufreq_init()
 if cpufreq_result != 0:
     raise RuntimeError(f"CPU frequency preflight failed: cpufreq_init={cpufreq_result}")
@@ -148,7 +152,6 @@ if os.environ.get("WOM1_PCPU_PSTATE"):
     print(f"CPU frequency: P-cluster P-state {requested_pstate(_before)} -> "
           f"{requested_pstate(_after)} ({PCPU_MHZ[_requested]} MHz), "
           f"raw 0x{_before:x} -> 0x{_after:x}")
-u = ProxyUtils(p, heap_size=768 * 1024 * 1024)
 hv = HV(iface, p, u)
 
 # Pin the guest's physical base so the load address stops moving between boots.

@@ -1,5 +1,7 @@
+import os
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 
@@ -42,6 +44,26 @@ class InstallEspTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("restore backup", result.stdout)
         self.assertIn("verify SHA-256", result.stdout)
+
+    def test_install_rejects_m1_pro_before_contacting_diskutil(self):
+        with tempfile.TemporaryDirectory() as directory:
+            for name, body in (
+                ("sysctl", "echo MacBookPro18,1"),
+                ("diskutil", "echo 'diskutil was called'; exit 99"),
+            ):
+                command = Path(directory) / name
+                command.write_text(f"#!/bin/sh\n{body}\n")
+                command.chmod(0o755)
+            result = subprocess.run(
+                [str(SCRIPT), "install", "--disk", "disk9s4", "--image", "unused.bin"],
+                cwd=directory,
+                env={**os.environ, "PATH": f"{directory}{os.pathsep}{os.defpath}"},
+                text=True,
+                capture_output=True,
+            )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("requires MacBookAir10,1 (detected MacBookPro18,1)", result.stderr)
+        self.assertEqual(result.stdout, "")
 
 
 if __name__ == "__main__":

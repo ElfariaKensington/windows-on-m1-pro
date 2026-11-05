@@ -66,6 +66,14 @@ if [ "$DRY_RUN" = 1 ]; then
     exit 0
 fi
 
+if [ "$ACTION" = install ]; then
+    HOST_MODEL=$(sysctl -n hw.model 2>/dev/null) || HOST_MODEL=unknown
+    if [ "$HOST_MODEL" != MacBookAir10,1 ]; then
+        echo "J313 standalone installation requires MacBookAir10,1 (detected $HOST_MODEL)" >&2
+        exit 1
+    fi
+fi
+
 if [ "$(id -u)" -ne 0 ]; then
     echo "run this command with sudo" >&2
     exit 1
