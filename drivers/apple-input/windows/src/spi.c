@@ -114,7 +114,7 @@ static NTSTATUS AiSpiTransferPhase(PAI_DEVICE_CONTEXT Context, const UCHAR *Tx,
     AiSpiWrite(Context, AI_SPI_REG_IRQ_FLAGS, MAXULONG);
     AiSpiWrite(Context, AI_SPI_REG_FIFO_FLAGS, MAXULONG);
     AiSpiWrite(Context, AI_SPI_REG_CLKDIV,
-        AiSpiClockDivider((ULONG)J313_APPLE_INPUT_SPI_SOURCE_HZ,
+        AiSpiClockDivider(Context->SpiSourceHz,
                           (ULONG)J313_APPLE_INPUT_SPI_BUS_HZ));
     {
         ULONG shift = AiSpiRead(Context, AI_SPI_REG_SHIFT_CONFIG);
