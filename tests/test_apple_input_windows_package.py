@@ -716,7 +716,8 @@ int main(void)
         self.assertIn("AiDeviceParseResources", device)
         self.assertIn("STATUS_DEVICE_CONFIGURATION_ERROR", device)
         self.assertIn("J313_APPLE_INPUT_GUEST_VINTID", device)
-        self.assertIn("static const LONGLONG AiExpectedBases", device)
+        self.assertIn("RtlCompareMemory(raw_bases", device)
+        self.assertIn("RtlCompareMemory(Context->MemoryLength", device)
         self.assertIn("MmMapIoSpaceEx", device)
         self.assertIn("MmUnmapIoSpace", device)
         self.assertIn("READ_REGISTER", spi)
@@ -742,8 +743,8 @@ int main(void)
         self.assertIn("AiSpiDeadlineExpired", spi)
         self.assertIn("WRITE_REGISTER_NOFENCE_ULONG", spi)
         self.assertIn("WRITE_REGISTER_NOFENCE_ULONG", gpio)
-        self.assertIn("J313_APPLE_INPUT_AP_GPIO_PIN", gpio)
-        self.assertIn("J313_APPLE_INPUT_NUB_GPIO_PIN", gpio)
+        self.assertIn("AiGpioPinOffset(Context->ApGpioPin)", gpio)
+        self.assertIn("AiGpioPinOffset(Context->NubGpioPin)", gpio)
         self.assertIn("AI_SPI_WRITE_STATUS_DELAY_US", hw_header)
         self.assertIn("AI_SPI_WRITE_STATUS_SIZE", hw_header)
         self.assertIn("AiSpiWritePacketReadStatus", spi)
@@ -761,11 +762,8 @@ int main(void)
         self.assertIn("WdfCmResourceListGetCount(Translated)", device)
         self.assertIn("raw_resource->u.Interrupt.Vector", device)
         self.assertIn("translated_resource->u.Interrupt.Vector", device)
-        self.assertRegex(
-            device,
-            r"raw_resource->u\.Interrupt\.Vector\s*!=\s*"
-            r"\(ULONG\)J313_APPLE_INPUT_GUEST_VINTID",
-        )
+        self.assertIn("raw_interrupt = raw_resource->u.Interrupt.Vector", device)
+        self.assertIn("raw_interrupt != AiBoards[index].Interrupt", device)
         self.assertRegex(
             device,
             r"Context->InterruptVector\s*=\s*"
@@ -885,7 +883,7 @@ int main(void)
         self.assertIn("NTSTATUS AiGpioEnableInputInterrupt", header)
         enable = self.c_function_body(gpio, "AiGpioEnableInputInterrupt")
         for required in (
-            "J313_APPLE_INPUT_NUB_GPIO_PIN",
+            "Context->NubGpioPin",
             "J313_APPLE_INPUT_IRQ_STARTUP_GROUP",
             "AiGpioInputInterruptValue",
             "READ_REGISTER_NOFENCE_ULONG",

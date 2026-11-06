@@ -3,7 +3,8 @@
 The target is the 2021 16-inch MacBook Pro, `MacBookPro18,1`, board `J316s`,
 SoC `T6000`, with two Icestorm and eight Firestorm cores. The changes here
 prepare the hypervisor for that CPU topology and build a standalone Setup
-candidate. Native entry and the Setup screen still need hardware validation.
+candidate. The wimboot build has reached the Windows 11 Setup GUI on this
+machine. An interactive Setup session and installation remain unverified.
 
 ## Evidence for the interrupt controller change
 
@@ -40,16 +41,94 @@ The m1n1 `J316S_SETUP=1` build recognizes the separate `ASIJ316S` payload.
 It validates board identity, image bounds and checksums before reserving
 guest RAM from the live boot memory map. It rejects overlap with the
 protected-memory carveouts and the existing framebuffer. The guest uses
-a private framebuffer that m1n1 copies to the existing panel surface.
+a private 1728 × 1117 framebuffer that m1n1 doubles onto the existing
+3456 × 2234 panel surface. The larger mode has been built and checked offline;
+it still needs a native boot check.
 
 EL2 compares the stage-2 mapping log against an exact allowlist before
 guest entry. It permits the reserved RAM and its low alias, software
 hooks for the virtual GIC and emulated serial port, and no physical MMIO.
 The J313 disk bridge and writable host ADT alias are outside this path.
-This profile aims for the first visible Setup screen. It includes the
-ARM64 Setup WIM and boot files on a RAM disk. The install image and
-physical keyboard, trackpad and GPU paths are outside that milestone.
+This profile includes the ARM64 Setup WIM and boot files on a RAM disk.
+The RAM disk does not contain `sources/install.wim`, and WinPE has no
+physical destination disk. A media-driver prompt in this profile does not
+establish that a particular Windows storage driver is missing.
 [Microsoft Windows PE](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/winpe-intro)
+
+### Input and installation media
+
+The live macOS device tree places the built-in input transport on SPI3 and
+its interrupt on NUB GPIO pin 6. The
+[Asahi board description](https://github.com/AsahiLinux/linux/blob/6ba0637d1ed9a2e3639dd3fc9eca6cd0483a6434/arch/arm64/boot/dts/apple/t600x-j314-j316.dtsi)
+also identifies AP GPIO pin 194 for SPI enable. The J313 input contract uses
+different controller addresses, AP pin 195 and NUB pin 13. Do not publish
+the J313 ACPI resources on J316s. Both WinPE images contain KMDF and VHF,
+but the Apple driver still needs a J316s resource and interrupt contract
+and a driver package that WinPE will load.
+
+The optional USB profile exposes the left front USB-C port through the
+inbox xHCI driver. EL2 validates the live controller and DART resources,
+starts the DWC3 core in USB2 host mode, and exposes only its xHCI register
+window. Physical AIC IRQ 1207 maps to guest INTID 857. The two dedicated
+DARTs translate USB DMA into the guest's low RAM window. The internal SSD
+stays outside the guest. The full install image must come from external
+media because it is larger than the EFI partition and reserved RAM disk.
+
+To build this profile, add `'BLD_*_J316S_SETUP_USB=TRUE'` to the Mu command
+and `--usb` to the packer command. The native checkpoint is to enumerate a
+wired keyboard, mouse and USB installation media on a USB2 hub in the
+left front port. USB role negotiation and transfers still need a native
+check.
+
+To prepare the complete installation source for an existing FAT32 USB volume:
+
+```sh
+python3 tools/build_j316s_setup_media.py windows-arm64.iso Windows-Setup-USB \
+  --usb-source --iso-sha256 <microsoft-iso-sha256>
+```
+
+This mode needs wimlib and 7-Zip. It extracts the complete ISO and verifies
+the ARM64 editions. If needed, it splits `sources/install.wim` into
+`install.swm` and subsequent parts in the same directory. Copy the contents
+of the result to the root of the USB volume. The m1n1 payload still starts
+Setup from RAM, and WinPE reads the full installation source from USB.
+
+To add built-in input, also pass `'BLD_*_J316S_SETUP_INPUT=TRUE'` to Mu and
+`--apple-input` to the packer. The firmware publishes the J316s SPI and
+GPIO resources. EL2 filters the GPIO register accesses to the two input
+pins and their interrupt acknowledge bit. The Windows driver selects
+the board clock and pins only after matching all resources. Build
+AppleInput with the ARM64 WDK, service the Setup WIM with the resulting
+package, and pass the serviced WIM to the media builder with `--boot-wim`.
+A separate prepared BCD store can be supplied with `--bcd` for a development
+signature policy. The standard driver package starts in transport-only
+mode. Keep USB input available while verifying enumeration and enabling
+the keyboard and trackpad collections.
+
+### Bounded internal Windows disk
+
+Add `'BLD_*_J316S_SETUP_STORAGE=TRUE'` to Mu and `--windows-slice` to
+the packer with USB enabled. The profile publishes a single synthetic NVMe
+disk. Its backend accepts one host GPT partition of type
+`0509C4B9-AC59-4CCD-93F3-8DECB17F35E3` with at least 64 GiB. Both GPT copies
+must agree, pass their CRC checks, and describe nonoverlapping partitions.
+All Windows disk LBAs are relative to that partition, including the nested
+Windows GPT. The host partition table is outside the exposed range.
+
+Mu uses generic UEFI PCI and NVMe drivers to find Windows Boot Manager on
+the nested EFI partition. With a blank Windows disk, the boot manager falls
+through to RAM-backed Setup. The storage profile deliberately stops if the
+required host partition is absent or invalid. This path has been built and
+checked with synthetic GPT data. Native ANS enumeration, installation and
+first boot still require validation on the target.
+
+The diagnostics-only profile uses the same virtual NVMe path but accepts a
+dedicated host GPT slice of at least 1 GiB. Its guest disk contains a nested
+GPT Basic Data partition formatted as FAT32. WinPE writes its SetupAPI, PnP,
+driver-service, event and AppleInput transport/VHF snapshots there when it
+finds the `J316S-DIAGNOSTICS.TARGET` marker. The write backend bounds every
+guest LBA to that one host slice. This profile does not require the installer
+USB to work and has not yet been qualified against native ANS hardware.
 
 ## Reproduce the offline checks
 
@@ -78,6 +157,7 @@ The packer also needs `llvm-nm` and `llvm-objcopy`.
 
 ```sh
 python3 tools/build_j316s_setup_media.py windows-arm64.iso setup-arm64.img \
+  --wimboot wimboot.arm64 \
   --iso-sha256 <microsoft-iso-sha256>
 python3 tools/pack_j316s_setup.py \
   --mu-build mu/Build/J316sSetup-AARCH64/DEBUG_CLANGPDB \
@@ -87,13 +167,10 @@ python3 tools/pack_j316s_setup.py \
 
 ## Hardware qualification
 
-The target Mac has the stock internal partition layout. A native test
-would require provisioning a separate Apple-authorized boot environment
-before the loader can run. The image is also larger than the ESP in
-Asahi's standard example layout. The stage-2 restrictions apply after
-m1n1 starts and cannot protect the process of setting up that boot
-environment. With no second Mac available for DFU recovery, the
-candidate was kept as an ordinary file. The first native checkpoint
-remains a visible Setup screen with the SSD absent from Windows.
+The native checkpoint used a separate Apple-authorized boot environment.
+The image is larger than the ESP in Asahi's standard example layout.
+Stage-2 restrictions apply after m1n1 starts and cannot protect the process
+of provisioning a boot environment. Preserve the build that reached Setup
+when preparing an image with new hardware access.
 [Asahi boot layout](https://asahilinux.org/docs/platform/open-os-interop/) ·
 [Apple DFU recovery requirements](https://support.apple.com/en-us/108900)
