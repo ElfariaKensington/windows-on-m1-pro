@@ -4,16 +4,27 @@
 #include <wdmsec.h>
 #endif
 
-static const LONGLONG AiExpectedBases[3] = {
-    J313_APPLE_INPUT_SPI_BASE,
-    J313_APPLE_INPUT_AP_GPIO_BASE,
-    J313_APPLE_INPUT_NUB_GPIO_BASE,
-};
-
-static const ULONG AiExpectedSizes[3] = {
-    (ULONG)J313_APPLE_INPUT_SPI_SIZE,
-    (ULONG)J313_APPLE_INPUT_AP_GPIO_SIZE,
-    (ULONG)J313_APPLE_INPUT_NUB_GPIO_SIZE,
+static const struct {
+    LONGLONG Bases[3];
+    ULONG Sizes[3];
+    ULONG Interrupt;
+    ULONG SpiSourceHz;
+    ULONG ApGpioPin;
+    ULONG NubGpioPin;
+} AiBoards[] = {
+    {
+        {J313_APPLE_INPUT_SPI_BASE, J313_APPLE_INPUT_AP_GPIO_BASE,
+         J313_APPLE_INPUT_NUB_GPIO_BASE},
+        {J313_APPLE_INPUT_SPI_SIZE, J313_APPLE_INPUT_AP_GPIO_SIZE,
+         J313_APPLE_INPUT_NUB_GPIO_SIZE},
+        J313_APPLE_INPUT_GUEST_VINTID, J313_APPLE_INPUT_SPI_SOURCE_HZ,
+        J313_APPLE_INPUT_AP_GPIO_PIN, J313_APPLE_INPUT_NUB_GPIO_PIN,
+    },
+    {
+        {0x39b10c000LL, 0x39b028000LL, 0x2921f0000LL},
+        {0x4000, 0x4000, 0x4000},
+        865, 24000000, 194, 6,
+    },
 };
 
 static BOOLEAN AiReadTransportOnlyParameter(WDFDRIVER Driver)
@@ -151,6 +162,8 @@ NTSTATUS AiDeviceParseResources(WDFCMRESLIST Raw, WDFCMRESLIST Translated,
 {
     ULONG memory = 0;
     ULONG interrupts = 0;
+    ULONG raw_interrupt = 0;
+    LONGLONG raw_bases[3];
     ULONG raw_count = WdfCmResourceListGetCount(Raw);
     ULONG translated_count = WdfCmResourceListGetCount(Translated);
 
@@ -170,25 +183,35 @@ NTSTATUS AiDeviceParseResources(WDFCMRESLIST Raw, WDFCMRESLIST Translated,
             raw_resource->Type != translated_resource->Type)
             return STATUS_DEVICE_CONFIGURATION_ERROR;
         if (translated_resource->Type == CmResourceTypeMemory) {
-            if (memory >= (ULONG)RTL_NUMBER_OF(AiExpectedBases) ||
-                raw_resource->u.Memory.Start.QuadPart != AiExpectedBases[memory] ||
-                raw_resource->u.Memory.Length != AiExpectedSizes[memory] ||
-                translated_resource->u.Memory.Length != AiExpectedSizes[memory])
+            if (memory >= (ULONG)RTL_NUMBER_OF(raw_bases) ||
+                raw_resource->u.Memory.Length != translated_resource->u.Memory.Length)
                 return STATUS_DEVICE_CONFIGURATION_ERROR;
+            raw_bases[memory] = raw_resource->u.Memory.Start.QuadPart;
             Context->MemoryBase[memory] = translated_resource->u.Memory.Start;
             Context->MemoryLength[memory++] = translated_resource->u.Memory.Length;
         } else if (translated_resource->Type == CmResourceTypeInterrupt) {
-            if (interrupts++ != 0 ||
-                raw_resource->u.Interrupt.Vector !=
-                    (ULONG)J313_APPLE_INPUT_GUEST_VINTID)
+            if (interrupts++ != 0)
                 return STATUS_DEVICE_CONFIGURATION_ERROR;
+            raw_interrupt = raw_resource->u.Interrupt.Vector;
             Context->InterruptVector = translated_resource->u.Interrupt.Vector;
         }
     }
     if (memory != 3 || interrupts != 1)
         return STATUS_DEVICE_CONFIGURATION_ERROR;
-    Context->ResourcesValidated = TRUE;
-    return STATUS_SUCCESS;
+    for (ULONG index = 0; index < RTL_NUMBER_OF(AiBoards); index++) {
+        if (raw_interrupt != AiBoards[index].Interrupt ||
+            RtlCompareMemory(raw_bases, AiBoards[index].Bases, sizeof(raw_bases)) !=
+                sizeof(raw_bases) ||
+            RtlCompareMemory(Context->MemoryLength, AiBoards[index].Sizes,
+                             sizeof(Context->MemoryLength)) != sizeof(Context->MemoryLength))
+            continue;
+        Context->SpiSourceHz = AiBoards[index].SpiSourceHz;
+        Context->ApGpioPin = AiBoards[index].ApGpioPin;
+        Context->NubGpioPin = AiBoards[index].NubGpioPin;
+        Context->ResourcesValidated = TRUE;
+        return STATUS_SUCCESS;
+    }
+    return STATUS_DEVICE_CONFIGURATION_ERROR;
 }
 
 NTSTATUS AppleInputEvtDevicePrepareHardware(WDFDEVICE Device, WDFCMRESLIST Raw,

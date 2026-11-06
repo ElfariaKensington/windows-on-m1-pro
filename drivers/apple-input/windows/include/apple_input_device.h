@@ -48,6 +48,9 @@ typedef struct _AI_DEVICE_CONTEXT {
     PHYSICAL_ADDRESS MemoryBase[3];
     ULONG MemoryLength[3];
     ULONG InterruptVector;
+    ULONG SpiSourceHz;
+    ULONG ApGpioPin;
+    ULONG NubGpioPin;
     PUCHAR SpiRegisters;
     PUCHAR ApGpioRegisters;
     PUCHAR NubGpioRegisters;

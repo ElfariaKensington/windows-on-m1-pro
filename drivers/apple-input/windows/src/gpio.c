@@ -15,7 +15,7 @@ static NTSTATUS AiGpioDelay(ULONGLONG Microseconds)
 static VOID AiGpioSetReset(PAI_DEVICE_CONTEXT Context, BOOLEAN High)
 {
     PULONG reg = (PULONG)(Context->ApGpioRegisters +
-        AiGpioPinOffset((ULONG)J313_APPLE_INPUT_AP_GPIO_PIN));
+        AiGpioPinOffset(Context->ApGpioPin));
     ULONG value = READ_REGISTER_NOFENCE_ULONG(reg);
     WRITE_REGISTER_NOFENCE_ULONG(reg, AiGpioOutputValue(value, High));
 }
@@ -28,16 +28,16 @@ NTSTATUS AiGpioValidateReadOnly(PAI_DEVICE_CONTEXT Context)
     if (!Context || !Context->ResourcesValidated || !Context->ApGpioRegisters ||
         !Context->NubGpioRegisters)
         return STATUS_DEVICE_NOT_READY;
-    if (AiGpioPinOffset((ULONG)J313_APPLE_INPUT_AP_GPIO_PIN) + sizeof(ULONG) >
+    if (AiGpioPinOffset(Context->ApGpioPin) + sizeof(ULONG) >
             Context->MemoryLength[1] ||
-        AiGpioPinOffset((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN) + sizeof(ULONG) >
+        AiGpioPinOffset(Context->NubGpioPin) + sizeof(ULONG) >
             Context->MemoryLength[2])
         return STATUS_DEVICE_CONFIGURATION_ERROR;
 
     ap_pin = READ_REGISTER_NOFENCE_ULONG((PULONG)(Context->ApGpioRegisters +
-        AiGpioPinOffset((ULONG)J313_APPLE_INPUT_AP_GPIO_PIN)));
+        AiGpioPinOffset(Context->ApGpioPin)));
     nub_pin = READ_REGISTER_NOFENCE_ULONG((PULONG)(Context->NubGpioRegisters +
-        AiGpioPinOffset((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN)));
+        AiGpioPinOffset(Context->NubGpioPin)));
     UNREFERENCED_PARAMETER(ap_pin);
     UNREFERENCED_PARAMETER(nub_pin);
     return STATUS_SUCCESS;
@@ -70,12 +70,12 @@ NTSTATUS AiGpioEnableInputInterrupt(PAI_DEVICE_CONTEXT Context)
 
     if (!Context || !Context->ResourcesValidated || !Context->NubGpioRegisters)
         return STATUS_DEVICE_NOT_READY;
-    if (AiGpioPinOffset((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN) + sizeof(ULONG) >
+    if (AiGpioPinOffset(Context->NubGpioPin) + sizeof(ULONG) >
             Context->MemoryLength[2])
         return STATUS_DEVICE_CONFIGURATION_ERROR;
 
     reg = (PULONG)(Context->NubGpioRegisters +
-        AiGpioPinOffset((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN));
+        AiGpioPinOffset(Context->NubGpioPin));
     value = READ_REGISTER_NOFENCE_ULONG(reg);
     WRITE_REGISTER_NOFENCE_ULONG(
         reg, AiGpioInputInterruptValue(
@@ -91,12 +91,12 @@ NTSTATUS AiGpioDisableInputInterrupt(PAI_DEVICE_CONTEXT Context)
 
     if (!Context || !Context->ResourcesValidated || !Context->NubGpioRegisters)
         return STATUS_DEVICE_NOT_READY;
-    if (AiGpioPinOffset((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN) + sizeof(ULONG) >
+    if (AiGpioPinOffset(Context->NubGpioPin) + sizeof(ULONG) >
             Context->MemoryLength[2])
         return STATUS_DEVICE_CONFIGURATION_ERROR;
 
     reg = (PULONG)(Context->NubGpioRegisters +
-        AiGpioPinOffset((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN));
+        AiGpioPinOffset(Context->NubGpioPin));
     value = READ_REGISTER_NOFENCE_ULONG(reg);
     WRITE_REGISTER_NOFENCE_ULONG(
         reg, AiGpioInputInterruptValue(
@@ -112,7 +112,7 @@ BOOLEAN AiGpioInputAsserted(PAI_DEVICE_CONTEXT Context)
     if (!Context || !Context->ResourcesValidated || !Context->NubGpioRegisters)
         return FALSE;
     reg = (PULONG)(Context->NubGpioRegisters +
-        AiGpioPinOffset((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN));
+        AiGpioPinOffset(Context->NubGpioPin));
     return AiGpioInputAssertedValue(READ_REGISTER_NOFENCE_ULONG(reg)) ? TRUE : FALSE;
 }
 
@@ -122,11 +122,11 @@ VOID AiGpioAcknowledge(PAI_DEVICE_CONTEXT Context)
 
     if (!Context || !Context->ResourcesValidated || !Context->NubGpioRegisters)
         return;
-    offset = AiGpioIrqAckOffset((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN,
+    offset = AiGpioIrqAckOffset(Context->NubGpioPin,
         (ULONG)J313_APPLE_INPUT_IRQ_STARTUP_GROUP);
     if (!AiSpiRegisterRangeValid(offset, sizeof(ULONG), Context->MemoryLength[2]))
         return;
     WRITE_REGISTER_NOFENCE_ULONG(
         (PULONG)(Context->NubGpioRegisters + offset),
-        AiGpioIrqAckMask((ULONG)J313_APPLE_INPUT_NUB_GPIO_PIN));
+        AiGpioIrqAckMask(Context->NubGpioPin));
 }
