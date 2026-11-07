@@ -26,17 +26,20 @@ if exist %W%\Windows\System32\Config\SYSTEM.J316-before-input-repair goto backed
 copy /y %W%\Windows\System32\Config\SYSTEM %W%\Windows\System32\Config\SYSTEM.J316-before-input-repair
 if errorlevel 1 goto failed
 :backedup
-copy /y X:\J316Install\repair-oobe.cmd %W%\J316Input\repair-oobe.cmd
+rem Service the offline Driver Store: input cannot approve an online publisher UI.
+md %W%\J316Input\scratch 2>nul
+dism /Image:%W%\ /Add-Driver /Driver:X:\J316Input\J316SpiInput.inf /ForceUnsigned /ScratchDir:%W%\J316Input\scratch /LogPath:%W%\Windows\Panther\J316-offline-input.log
 if errorlevel 1 goto failed
-copy /y X:\J316Install\prepare-input.cmd %W%\J316Input\prepare-input.cmd
+dism /Image:%W%\ /Add-Driver /Driver:X:\J316Input\J316VhfInput.inf /ForceUnsigned /ScratchDir:%W%\J316Input\scratch /LogPath:%W%\Windows\Panther\J316-offline-input.log
 if errorlevel 1 goto failed
 reg load HKLM\J316Offline %W%\Windows\System32\Config\SYSTEM
 if errorlevel 1 goto failed
-reg add HKLM\J316Offline\Setup /v CmdLine /t REG_SZ /d "cmd.exe /c C:\J316Input\repair-oobe.cmd" /f
-reg add HKLM\J316Offline\Setup /v SetupType /t REG_DWORD /d 2 /f
-reg add HKLM\J316Offline\Setup /v SystemSetupInProgress /t REG_DWORD /d 1 /f
+reg add HKLM\J316Offline\Setup /v CmdLine /t REG_SZ /d "" /f
+reg add HKLM\J316Offline\Setup /v SetupType /t REG_DWORD /d 0 /f
+reg add HKLM\J316Offline\Setup /v SystemSetupInProgress /t REG_DWORD /d 0 /f
 reg unload HKLM\J316Offline
-echo Repair prepared. Restarting into existing Windows.
+echo Both offline input packages installed.>%W%\J316Input\offline-input-installed.txt
+echo Input installed offline. Restarting into existing Windows.
 wpeutil reboot
 exit /b
 :failed

@@ -57163,3 +57163,5 @@ and hash-matched. Normal outer EFI restored with full-partition readback
 No reinstall, no partition changes, no test suite or native reboot performed.
 Next native Windows boot installs input after correcting certificate clock,
 clears the repair hook before work and restarts into OOBE. Operator result pending.
+
+J316S-INPUT-REPAIR-003 WHY THIS HYPOTHESIS: native photo now shows publisher approval blocking pnputil before input exists. Trust helper certificate matches supplied signer, but online approval is unsuitable for input bootstrap. Use supported offline DISM Add-Driver /ForceUnsigned for the exact two development INFs, preserve existing test-signing and runtime driver, then clear Setup hook to original empty/0/0. Source: https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/add-and-remove-drivers-to-an-offline-windows-image?view=windows-11 . Scope: same pinned private Windows container; no reinstall, no native reboot, no test suite.
