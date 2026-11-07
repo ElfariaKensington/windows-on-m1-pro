@@ -3,6 +3,8 @@
 #include <windows.h>
 #include <wincrypt.h>
 #include <winioctl.h>
+#include <setupapi.h>
+#include <newdev.h>
 #include "certificate.h"
 #include "diagnostics.h"
 
@@ -17,7 +19,30 @@ void mainCRTStartup(void)
         ExitProcess(0);
     }
     DWORD result = 0;
-    if (*cmd && cmd[1] == L't') {
+    if (*cmd && cmd[1] == L'b') {
+        /* VHF keeps HID_DEVICE_SYSTEM_VHF as its first hardware ID. WinPE's
+         * broken inbox INF therefore outranks our source-specific second ID.
+         * Wait for BOTH children, then select their self-contained bridge.
+         * No other VHF source or physical device has this enumerator/ID. */
+        HDEVINFO devices = SetupDiGetClassDevsW(NULL, L"J316SPI", NULL,
+                                                DIGCF_PRESENT | DIGCF_ALLCLASSES);
+        if (devices == INVALID_HANDLE_VALUE) ExitProcess(GetLastError());
+        SP_DEVINFO_DATA info = {0}; info.cbSize = sizeof(info);
+        DWORD count = 0;
+        while (SetupDiEnumDeviceInfo(devices, count, &info)) ++count;
+        SetupDiDestroyDeviceInfoList(devices);
+        if (count != 2) {
+            print("Waiting for both internal-input HID children\r\n");
+            ExitProcess(ERROR_NOT_READY);
+        }
+        BOOL reboot = FALSE;
+        if (!UpdateDriverForPlugAndPlayDevicesW(NULL, L"J316SPI\\VHF_INPUT",
+                L"X:\\J316Input\\J316VhfInput.inf", INSTALLFLAG_FORCE, &reboot))
+            result = GetLastError();
+        if (!result && reboot) result = ERROR_SUCCESS_REBOOT_REQUIRED;
+        char line[100]; wsprintfA(line, "Internal HID bridge binding result: %lu\r\n", result);
+        print(line);
+    } else if (*cmd && cmd[1] == L't') {
         PCCERT_CONTEXT cert = CertCreateCertificateContext(X509_ASN_ENCODING,
                                                            ji_certificate, sizeof(ji_certificate));
         if (!cert) ExitProcess(GetLastError());

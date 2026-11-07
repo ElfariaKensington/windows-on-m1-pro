@@ -34,6 +34,7 @@ done
     "$wdk/Lib/10.0.28000.0/km/ARM64/bufferoverflowfastfailk.lib" \
     "$sdkarm/um/arm64/arm64rt.lib"
 cp "$root/drivers/j316-spi-input/J316SpiInput.inf" "$out/"
+cp "$root/drivers/j316-spi-input/J316VhfInput.inf" "$out/"
 if [[ -n "${JI_CERTIFICATE:-}" ]]; then
     python3 - "$JI_CERTIFICATE" "$out/certificate.h" <<'PY'
 from pathlib import Path
@@ -50,5 +51,6 @@ PY
     "$link" -flavor link /nologo /machine:arm64 /subsystem:console /entry:mainCRTStartup \
         /nodefaultlib "/out:$out/J316Tools.exe" "$out/tools.obj" \
         "$sdkarm/um/arm64/kernel32.Lib" "$sdkarm/um/arm64/crypt32.Lib" \
-        "$sdkarm/um/arm64/user32.Lib" "$sdkarm/um/arm64/advapi32.Lib"
+        "$sdkarm/um/arm64/user32.Lib" "$sdkarm/um/arm64/advapi32.Lib" \
+        "$sdkarm/um/arm64/setupapi.Lib" "$sdkarm/um/arm64/newdev.Lib"
 fi

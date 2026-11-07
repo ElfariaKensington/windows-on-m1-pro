@@ -3,6 +3,7 @@
 #include <wdf.h>
 #include <hidport.h>
 #include <vhf.h>
+#include "vhf_binding.h"
 #include "protocol.h"
 #include "diagnostics.h"
 
@@ -248,8 +249,8 @@ static NTSTATUS create_hid(JI_CONTEXT *c, UCHAR *descriptor, USHORT size,
     VHF_CONFIG_INIT(&config, WdfDeviceWdmGetDeviceObject(c->device), size, descriptor);
     config.VendorID = 0x05ac; config.ProductID = (USHORT)c->diag.product;
     config.VersionNumber = 1; config.VhfClientContext = c;
-    config.InstanceID = keyboard ? keyboard_instance : trackpad_instance;
-    config.InstanceIDLength = sizeof(keyboard_instance) - sizeof(WCHAR);
+    ji_vhf_binding(&config, keyboard ? keyboard_instance : trackpad_instance,
+                   sizeof(keyboard_instance));
     if (keyboard) config.EvtVhfAsyncOperationWriteReport = JiOutput;
     NTSTATUS status = VhfCreate(&config, hid);
     if (NT_SUCCESS(status)) status = VhfStart(*hid);

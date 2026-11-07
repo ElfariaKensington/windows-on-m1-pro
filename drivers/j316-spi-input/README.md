@@ -92,8 +92,8 @@ performs the reverse operation. Neither command reboots the machine.
 
 Native logs are in `X:\J316Input`. When the existing diagnostics volume is
 found through `J316S-DIAGNOSTICS.TARGET`, they are copied to `J316FreshInput`.
-Phase 10 means discovery and VHF startup completed; the keyboard/mouse counters
-then show whether hardware reports are reaching Windows.
+Phase 10 means discovery and VHF source startup completed. The keyboard/mouse
+counters count decoded hardware reports, not delivery to Windows applications.
 
 ## First native result and failure diagnostics
 
@@ -141,3 +141,46 @@ Both regressions failed with the previous strict policy and pass with this
 change. Tests cover missing optional metadata, required-query failures,
 different response counters, wrong interfaces/types, interleaved input and bad
 CRCs. The correction still requires native keyboard/touchpad validation.
+
+## WinPE HID child binding
+
+The next native recording reached phase 10/status 0 with a 90-byte keyboard
+descriptor, 128 keyboard reports, 449 mouse reports and no submission errors.
+Input was still unusable. A resource-free ARM64 Windows probe reproduced the
+downstream fault: SetupAPI could not include `MsHidKmdf.inf` and rejected both
+VHF children with `0xe0000219` (no associated function driver). This Setup WIM
+contains Microsoft's `mshidkmdf.sys` but omits its Include/Needs-only INF.
+
+The source now supplies a private `J316SPI\VHF_INPUT` hardware ID, and
+`J316VhfInput.inf` binds those children to the existing Microsoft miniport.
+It contains the complete service installation and has no missing INF dependency.
+No Microsoft binary is replaced or redistributed in this source tree.
+The main INF stages the bridge with CopyINF; the Setup script also stages it
+before loading the source.
+
+VHF retains `HID_DEVICE_SYSTEM_VHF` as its first hardware ID, which makes the
+broken inbox INF outrank our second, specific ID. `J316Tools.exe /bind` therefore
+waits for exactly two present `J316SPI` children and uses Microsoft's
+UpdateDriverForPlugAndPlayDevices API to select their bridge. Startup retries
+only until the first successful binding. No other VHF source matches the ID.
+Both instance-ID lengths include their terminating NUL; previously VHF truncated
+the final character.
+
+`vhf_probe.c` and `input_observer.c` provide a Windows integration regression.
+The probe shares `vhf_binding.h` and the production mouse descriptor, uses the
+live keyboard's measured descriptor, and generates alternating A-key and relative
+mouse reports. Its separate test INF must match only `ROOT\J316VHFP`.
+It must never be installed into the native boot image.
+The VM has virtual NVMe storage and a framebuffer, with no input devices attached.
+`vhf-regression.cmd` runs the actual production startup script and helper;
+the observer must report nonzero key-down samples AND cursor changes, and PnP
+must show started `kbdhid/kbdclass` and `mouhid/mouclass` stacks.
+This validates Windows HID delivery; physical M1 Pro operation still requires
+the user's native test.
+The final production-startup regression recorded binding result 0, 759 key-down
+samples, 101 cursor changes, and both started class stacks. Without the bridge,
+the same descriptor/report probe recorded zero keys and zero cursor changes.
+
+References: [Microsoft VHF architecture](https://learn.microsoft.com/en-us/windows-hardware/drivers/hid/virtual-hid-framework--vhf-),
+[VHF configuration](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/vhf/ns-vhf-_vhf_config),
+[forced selection of a matching device driver](https://learn.microsoft.com/en-us/windows/win32/api/newdev/nf-newdev-updatedriverforplugandplaydevicesw).

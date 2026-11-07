@@ -29,7 +29,7 @@ def main():
     manifest = args.output.with_suffix(".manifest.json")
     if args.output.exists() or manifest.exists():
         parser.error("Output or manifest already exists")
-    files = ("J316SpiInput.sys", "J316SpiInput.inf", "J316SpiInput.cat",
+    files = ("J316SpiInput.sys", "J316SpiInput.inf", "J316VhfInput.inf", "J316SpiInput.cat",
              "J316SpiInput.cer", "J316Tools.exe")
     for name in files:
         if not (args.package / name).is_file():

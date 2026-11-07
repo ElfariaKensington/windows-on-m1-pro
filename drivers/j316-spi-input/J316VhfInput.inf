@@ -1,0 +1,32 @@
+; SPDX-License-Identifier: MIT
+; WinPE has mshidkmdf.sys but omits the Include/Needs-only mshidkmdf.inf.
+; Bind the existing Microsoft HID miniport only to this source's VHF children.
+[Version]
+Signature="$WINDOWS NT$"
+Class=HIDClass
+ClassGuid={745A17A0-74D3-11D0-B6FE-00A0C90F57DA}
+Provider=%Provider%
+DriverVer=11/07/2026,1.0.0.0
+PnpLockdown=1
+CatalogFile=J316SpiInput.cat
+
+[Manufacturer]
+%Provider%=Models,NTarm64
+[Models.NTarm64]
+%Device%=Input,J316SPI\VHF_INPUT
+
+[Input.NT]
+[Input.NT.HW]
+[Input.NT.Services]
+AddService=mshidkmdf,0x00000002,HidService
+[HidService]
+DisplayName=%Service%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%12%\mshidkmdf.sys
+
+[Strings]
+Provider="J316 SPI Input Project"
+Device="J316 Built-in Input HID Bridge"
+Service="Pass-through HID to KMDF Filter Driver"
