@@ -57120,3 +57120,19 @@ namespace, missing test-only product key, and wrong automatic ESP selection;
 explicit Disk0 NTFS partition3 now under installation test. Production keeps
 partition selection interactive. Source image80GB hash
 c5d72f9fa32d01d4235735b46720f1ea4e62678f878ef0e8b95a19136922f03d.
+
+J316S-INSTALL-001 operator instruction: stop VM testing and complete physical
+disk sizing and staging; user will install. VM applied Windows to NTFS and
+booted installed Windows services, then operator ended further validation.
+Authorized reservation:80GB; diskutil plan in .build/j316s-install/partition-plan.json;
+GPT backup and protected-partition checks mandatory before/after resize.
+
+J316S-INSTALL-001 reservation complete: macOS403732226048 bytes; private disk
+79865782272 bytes at404256538624, UUID A37CB41C-BDF1-47E3-8F28-C8CEE41469EE.
+Diskutil deducted128MiB for its helper from the80GB request. Source GPT was fitted
+to the actual partition without altering SWMs/package; SHA256
+648fa11070dae8859980905eb02792c8eb5343fe9dabfdbdf3560f301bf8106b.
+Protected partition checks PASS. Worker performs source and EFI staging.
+
+J316S-INSTALL-001 completed physical reservation and staging: {"container": {"device": "/dev/rdisk0s10", "disk_uuid": "A37CB41C-BDF1-47E3-8F28-C8CEE41469EE", "bytes": 79865782272, "readback_sha256": "648fa11070dae8859980905eb02792c8eb5343fe9dabfdbdf3560f301bf8106b", "action": "installed source and empty Windows target"}, "efi": {"time_utc": "2026-11-07T15:32:26.725413+00:00", "device": "/dev/rdisk0s4", "disk_uuid": "9FBC60EC-E8FD-4270-8C54-B18BB7DDD4AE", "bytes": 1000341504, "action": "installed", "readback_sha256": "8eea4d3deb39e1816fc6dbd4a01c945b8351d633240e8b8dec1a67e3b3bc89c0", "native_input_test": "pending user test"}}
+Operator stopped further VM testing; native full installation remains user-operated.

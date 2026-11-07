@@ -5,7 +5,7 @@ The Setup Load Driver screen is missing install media/target, not failed input.
 J316S-INSTALL-001 adds private 80GB container, persistent SWMs and OEM input
 first-boot setup. Reclaimed37.77GB generated files/evidence compression.
 4 storage tests plus sanitized GPT and18 Python checks PASS. Windows ARM64 VM
-installation reached98% on the correct NTFS target; physical staging pending.
+installation reached98% on the correct NTFS target; physical staging complete:80GB private container and installer readbacks verified.
 Current working EFI remains SPI-005 SHA69e26c15f520b4bd81b9867c2375f75f4cbad77c2a2ccaf4665e62d38d66fa41.
 
 ## M1 Pro port decision (2026-11-06)

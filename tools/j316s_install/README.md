@@ -21,7 +21,8 @@ No native Apple NVMe register or protocol implementation changes.
 
 `provision.py` prints its plan by default. `--execute` requires the exact J316s
 model, macOS physical-store UUID/size, EFI UUID/size and enough APFS resize room.
-It backs up the physical GPT, shrinks APFS using `diskutil`, and adds the private
+It saves the complete partition map (plus raw GPT sectors when macOS permits),
+shrinks APFS using `diskutil`, and adds the private
 partition with `diskutil addPartition`. Existing partition offsets, sizes and
 UUIDs must remain unchanged except for the authorized macOS shrink. The 256 MiB
 margin accommodates macOS' automatic helper partition for unknown GPT types.

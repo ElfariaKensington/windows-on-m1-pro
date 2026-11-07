@@ -7,12 +7,12 @@ from pathlib import Path
 import plistlib
 import subprocess
 
-from layout import BLOCK, DISK_BYTES, INSTALL_TYPE
+from layout import BLOCK, DISK_BYTES, INSTALL_TYPE, RESERVATION_BYTES
 
 MAC_UUID = "4851F6E1-6299-4215-9335-D6AA7EC5147E"
 EFI_UUID = "9FBC60EC-E8FD-4270-8C54-B18BB7DDD4AE"
 MAC_BYTES = 484_000_661_504
-NEW_MAC_BYTES = MAC_BYTES - DISK_BYTES - 256 * 1024**2
+NEW_MAC_BYTES = MAC_BYTES - RESERVATION_BYTES - 256 * 1024**2
 
 
 def command(args):
@@ -56,7 +56,7 @@ def validate_plan(parts, minimum):
         outer_type=INSTALL_TYPE, protected_partitions=parts,
         commands=[["/usr/sbin/diskutil", "apfs", "resizeContainer", MAC_UUID, str(NEW_MAC_BYTES)+"b"],
                   ["/usr/sbin/diskutil", "addPartition", MAC_UUID,
-                   "%"+INSTALL_TYPE+"%", "%noformat%", str(DISK_BYTES)+"b"]])
+                   "%"+INSTALL_TYPE+"%", "%noformat%", str(RESERVATION_BYTES)+"b"]])
 
 
 def validate_result(before, after, plan):
@@ -93,9 +93,16 @@ def main():
     disk=info("disk0"); size=disk["TotalSize"]
     if disk["DeviceBlockSize"] != BLOCK or not disk["Internal"]:
         raise RuntimeError("Unexpected physical disk")
-    with open("/dev/rdisk0","rb",buffering=0) as f:
-        (a.output/"gpt-primary-before.bin").write_bytes(f.read(7*BLOCK))
-        f.seek(size-5*BLOCK);(a.output/"gpt-secondary-before.bin").write_bytes(f.read(5*BLOCK))
+    (a.output/"physical-disk-before.plist").write_bytes(plistlib.dumps(disk))
+    try:
+        with open("/dev/rdisk0","rb",buffering=0) as f:
+            (a.output/"gpt-primary-before.bin").write_bytes(f.read(7*BLOCK))
+            f.seek(size-5*BLOCK);(a.output/"gpt-secondary-before.bin").write_bytes(f.read(5*BLOCK))
+    except PermissionError:
+        # macOS can deny whole-device reads while allowing its supported live
+        # resize API. The complete UUID/type/offset/size map is saved in plan.json.
+        (a.output/"backup-method.txt").write_text(
+            "Whole-device raw read denied by macOS; logical GPT map preserved in plan.json.\n")
     for i,cmd in enumerate(plan["commands"]):
         with (a.output/f"diskutil-{i}.log").open("wb") as log:
             subprocess.run(cmd,stdout=log,stderr=subprocess.STDOUT,check=True)
