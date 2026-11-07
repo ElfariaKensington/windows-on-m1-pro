@@ -1,0 +1,45 @@
+[Version]
+Signature="$WINDOWS NT$"
+Class=HIDClass
+ClassGuid={745A17A0-74D3-11D0-B6FE-00A0C90F57DA}
+Provider=%Provider%
+DriverVer=11/07/2026,1.0.0.0
+PnpLockdown=1
+CatalogFile=J316SpiInput.cat
+
+[Manufacturer]
+%Provider%=Models,NTarm64
+[Models.NTarm64]
+%Device%=Input,ACPI\APPL0001
+
+[Input.NT]
+CopyFiles=DriverFiles
+[DriverFiles]
+J316SpiInput.sys
+[DestinationDirs]
+DriverFiles=12
+[SourceDisksNames]
+1=%Disk%,,,
+[SourceDisksFiles]
+J316SpiInput.sys=1
+
+[Input.NT.HW]
+AddReg=Filters
+[Filters]
+HKR,,LowerFilters,0x00010000,"vhf"
+[Input.NT.Services]
+AddService=J316SpiInput,0x00000002,Service
+[Service]
+DisplayName=%Device%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%12%\J316SpiInput.sys
+[Input.NT.Wdf]
+KmdfService=J316SpiInput,Wdf
+[Wdf]
+KmdfLibraryVersion=1.33
+[Strings]
+Provider="J316 SPI Input Project"
+Device="J316 SPI Keyboard and Trackpad"
+Disk="J316 SPI Input"
