@@ -4,14 +4,10 @@
 #include <hidport.h>
 #include <vhf.h>
 #include "protocol.h"
+#include "diagnostics.h"
 
 #define JI_TAG 'iS6J'
 #define JI_SNAPSHOT CTL_CODE(FILE_DEVICE_UNKNOWN, 0x900, METHOD_BUFFERED, FILE_READ_ACCESS)
-typedef struct {
-    ULONG version, phase, status, booted, vendor, product;
-    ULONG packets, malformed, timeouts, keyboard, mouse, submit_errors, resets;
-    ULONG spi_control, spi_fifo, gpio_input, descriptor_size;
-} JI_DIAG;
 typedef struct {
     WDFDEVICE device;
     WDFTIMER timer;
@@ -28,6 +24,7 @@ typedef struct {
     BOOLEAN response_ready, request_pending, mt_pending, output_pending;
     UCHAR output[64];
     ULONG output_size;
+    ULONG diagnostic_ticks;
 } JI_CONTEXT;
 WDF_DECLARE_CONTEXT_TYPE_WITH_NAME(JI_CONTEXT, JiContext)
 DRIVER_INITIALIZE DriverEntry;
@@ -44,6 +41,29 @@ static ULONG rd(PUCHAR p, ULONG off) { return READ_REGISTER_ULONG((PULONG)(p + o
 static VOID wr(PUCHAR p, ULONG off, ULONG v) { WRITE_REGISTER_ULONG((PULONG)(p + off), v); }
 static VOID modify(PUCHAR p, ULONG off, ULONG mask, ULONG v)
 { wr(p, off, (rd(p, off) & ~mask) | v); }
+/* This value survives a failed start, when Windows refuses device opens. */
+static VOID snapshot(JI_CONTEXT *c)
+{
+    DECLARE_CONST_UNICODE_STRING(name, L"Snapshot");
+    WDFKEY key;
+    if (c->spi) {
+        c->diag.spi_control = rd(c->spi, 0); c->diag.spi_fifo = rd(c->spi, 0x10c);
+        c->diag.spi_shift = rd(c->spi, 0x150); c->diag.spi_pinconfig = rd(c->spi, 0x154);
+        c->diag.spi_xfer = rd(c->spi, 0x134); c->diag.spi_fifo_flags = rd(c->spi, 0x13c);
+        c->diag.rx_count = rd(c->spi, 0x34);
+    }
+    if (c->ap) c->diag.gpio_enable = rd(c->ap, 194 * 4);
+    if (c->nub) c->diag.gpio_input = rd(c->nub, 6 * 4);
+    if (NT_SUCCESS(WdfDriverOpenParametersRegistryKey(WdfGetDriver(), KEY_WRITE,
+                                                     WDF_NO_OBJECT_ATTRIBUTES, &key))) {
+        (void)WdfRegistryAssignValue(key, &name, REG_BINARY, sizeof(c->diag), &c->diag);
+        WdfRegistryClose(key);
+    }
+}
+static NTSTATUS prepare_failure(JI_CONTEXT *c, NTSTATUS status)
+{
+    c->diag.phase = 11; c->diag.status = status; snapshot(c); return status;
+}
 static VOID sleep_ms(ULONG ms)
 {
     LARGE_INTEGER t; t.QuadPart = -(LONGLONG)ms * 10000;
@@ -98,7 +118,7 @@ bad:
 static NTSTATUS send_command(JI_CONTEXT *c, UCHAR target, UCHAR command, UCHAR report,
                              UCHAR iface, USHORT reply, const UCHAR *data, ULONG size)
 {
-    UCHAR packet[JI_PACKET], ack[4];
+    UCHAR packet[JI_PACKET], ack[4] = {0};
     UCHAR seq = c->sequence++;
     if (!ji_request(packet, target, command, report, iface, seq, reply, data, size))
         return STATUS_INVALID_PARAMETER;
@@ -110,8 +130,11 @@ static NTSTATUS send_command(JI_CONTEXT *c, UCHAR target, UCHAR command, UCHAR r
     if (NT_SUCCESS(status)) {
         KeStallExecutionProcessor(200);
         status = transfer(c, NULL, ack, sizeof(ack));
-        if (NT_SUCCESS(status) && memcmp(ack, "\xac\x27\x68\xd5", 4))
+        memcpy(&c->diag.last_ack, ack, sizeof(ack));
+        if (NT_SUCCESS(status) && memcmp(ack, "\xac\x27\x68\xd5", 4)) {
+            ++c->diag.bad_acks;
             status = STATUS_DEVICE_DATA_ERROR;
+        }
     }
     chip_select(c, FALSE);
     return status;
@@ -161,6 +184,9 @@ static NTSTATUS read_packet(JI_CONTEXT *c)
     chip_select(c, FALSE);
     if (!NT_SUCCESS(status)) return status;
     ++c->diag.packets;
+    c->diag.last_flags = packet[0]; c->diag.last_device = packet[1];
+    c->diag.last_length = packet[6] | ((ULONG)packet[7] << 8);
+    c->diag.last_crc = ji_crc(packet, sizeof(packet));
     int result = ji_receive(&c->assembly, packet, message, c);
     if (result == 2) c->diag.booted = 1;
     else if (result < 0) ++c->diag.malformed;
@@ -231,6 +257,7 @@ NTSTATUS JiPowerOn(WDFDEVICE device, WDF_POWER_DEVICE_STATE previous)
     JI_CONTEXT *c = JiContext(device);
     NTSTATUS status;
     c->diag.phase = 1; c->diag.booted = 0;
+    c->diag.status = STATUS_PENDING; snapshot(c);
     RtlZeroMemory(&c->assembly, sizeof(c->assembly));
     RtlZeroMemory(&c->mouse, sizeof(c->mouse));
     /* Linux's divider 3 with a 24 MHz source stays below the 8 MHz limit.
@@ -245,9 +272,9 @@ NTSTATUS JiPowerOn(WDFDEVICE device, WDF_POWER_DEVICE_STATE previous)
     modify(c->ap, 194 * 4, 15, 3); sleep_ms(5);
     modify(c->ap, 194 * 4, 15, 2); sleep_ms(5);
     modify(c->ap, 194 * 4, 15, 3); sleep_ms(50);
-    c->diag.phase = 2;
+    c->diag.phase = 2; snapshot(c);
     status = wait_response(c, TRUE); if (!NT_SUCCESS(status)) goto fail;
-    c->diag.phase = 3;
+    c->diag.phase = 3; snapshot(c);
     status = query(c, 1, 0xd0, 0); if (!NT_SUCCESS(status)) goto fail;
     if (c->response_size < 24 || c->response[4] < 3 ||
         c->response[6] != 0xac || c->response[7] != 5) {
@@ -257,10 +284,11 @@ NTSTATUS JiPowerOn(WDFDEVICE device, WDF_POWER_DEVICE_STATE previous)
     c->diag.product = c->response[8] | ((ULONG)c->response[9] << 8);
     for (UCHAR iface = 0; iface < 3; ++iface) {
         c->diag.phase = 4 + iface;
+        snapshot(c);
         status = query(c, 2, iface, JI_DESCRIPTOR); if (!NT_SUCCESS(status)) goto fail;
         if (c->response_size < 16) { status = STATUS_DEVICE_PROTOCOL_ERROR; goto fail; }
     }
-    c->diag.phase = 7;
+    c->diag.phase = 7; snapshot(c);
     status = query(c, 0x10, 1, JI_DESCRIPTOR); if (!NT_SUCCESS(status)) goto fail;
     if (!c->response_size) { status = STATUS_DEVICE_PROTOCOL_ERROR; goto fail; }
     if (c->keyboard_hid && (c->keyboard_descriptor_size != c->response_size ||
@@ -270,9 +298,9 @@ NTSTATUS JiPowerOn(WDFDEVICE device, WDF_POWER_DEVICE_STATE previous)
     memcpy(c->keyboard_descriptor, c->response, c->response_size);
     c->keyboard_descriptor_size = c->response_size;
     c->diag.descriptor_size = c->response_size;
-    c->diag.phase = 8;
+    c->diag.phase = 8; snapshot(c);
     status = query(c, 0x10, 2, JI_DESCRIPTOR); if (!NT_SUCCESS(status)) goto fail;
-    c->diag.phase = 9;
+    c->diag.phase = 9; snapshot(c);
     if (!c->keyboard_hid) {
         status = create_hid(c, c->keyboard_descriptor, (USHORT)c->keyboard_descriptor_size,
                             TRUE, &c->keyboard_hid);
@@ -286,10 +314,12 @@ NTSTATUS JiPowerOn(WDFDEVICE device, WDF_POWER_DEVICE_STATE previous)
     c->mt_pending = TRUE;
     InterlockedExchange(&c->active, 1);
     c->diag.phase = 10; c->diag.status = STATUS_SUCCESS;
+    snapshot(c);
     WdfTimerStart(c->timer, WDF_REL_TIMEOUT_IN_MS(4));
     return STATUS_SUCCESS;
 fail:
     c->diag.status = status;
+    snapshot(c);
     modify(c->ap, 194 * 4, 15, 2); wr(c->spi, 0, 12);
     return status;
 }
@@ -317,6 +347,7 @@ VOID JiPoll(WDFTIMER timer)
     c->diag.status = status;
     c->diag.spi_control = rd(c->spi, 0); c->diag.spi_fifo = rd(c->spi, 0x10c);
     c->diag.gpio_input = rd(c->nub, 6 * 4);
+    if (!(++c->diagnostic_ticks % 256) || !NT_SUCCESS(status)) snapshot(c);
     if (InterlockedCompareExchange(&c->active, 1, 1))
         WdfTimerStart(c->timer, WDF_REL_TIMEOUT_IN_MS(NT_SUCCESS(status) ? 4 : 100));
 }
@@ -349,11 +380,11 @@ NTSTATUS JiPrepare(WDFDEVICE device, WDFCMRESLIST raw, WDFCMRESLIST translated)
             unsigned j;
             for (j = 0; j < 3; ++j) if ((ULONGLONG)r->u.Memory.Start.QuadPart == bases[j]) break;
             if (j == 3 || (found & (1u << j)) || r->u.Memory.Length != 0x4000)
-                return STATUS_DEVICE_CONFIGURATION_ERROR;
+                return prepare_failure(c, STATUS_DEVICE_CONFIGURATION_ERROR);
             found |= 1u << j; addresses[j] = r->u.Memory.Start;
         } else if (r->Type == CmResourceTypeInterrupt) ++interrupts;
     }
-    if (found != 7 || interrupts != 1) return STATUS_DEVICE_CONFIGURATION_ERROR;
+    if (found != 7 || interrupts != 1) return prepare_failure(c, STATUS_DEVICE_CONFIGURATION_ERROR);
     c->spi = MmMapIoSpaceEx(addresses[0], 0x4000, PAGE_READWRITE | PAGE_NOCACHE);
     c->ap = MmMapIoSpaceEx(addresses[1], 0x4000, PAGE_READWRITE | PAGE_NOCACHE);
     c->nub = MmMapIoSpaceEx(addresses[2], 0x4000, PAGE_READWRITE | PAGE_NOCACHE);
@@ -361,7 +392,7 @@ NTSTATUS JiPrepare(WDFDEVICE device, WDFCMRESLIST raw, WDFCMRESLIST translated)
         if (c->spi) MmUnmapIoSpace(c->spi, 0x4000);
         if (c->ap) MmUnmapIoSpace(c->ap, 0x4000);
         if (c->nub) MmUnmapIoSpace(c->nub, 0x4000);
-        c->spi = c->ap = c->nub = NULL; return STATUS_INSUFFICIENT_RESOURCES;
+        c->spi = c->ap = c->nub = NULL; return prepare_failure(c, STATUS_INSUFFICIENT_RESOURCES);
     }
     return STATUS_SUCCESS;
 }
@@ -409,7 +440,8 @@ NTSTATUS JiAdd(WDFDRIVER driver, PWDFDEVICE_INIT init)
     attributes.ExecutionLevel = WdfExecutionLevelPassive;
     NTSTATUS status = WdfDeviceCreate(&init, &attributes, &device);
     if (!NT_SUCCESS(status)) return status;
-    JI_CONTEXT *c = JiContext(device); c->device = device; c->diag.version = 1;
+    JI_CONTEXT *c = JiContext(device); c->device = device; c->diag.version = 2;
+    c->diag.status = STATUS_PENDING; snapshot(c);
     WDF_OBJECT_ATTRIBUTES_INIT(&attributes); attributes.ParentObject = device;
     status = WdfSpinLockCreate(&attributes, &c->output_lock);
     if (!NT_SUCCESS(status)) return status;

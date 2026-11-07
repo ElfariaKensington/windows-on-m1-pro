@@ -50,5 +50,5 @@ PY
     "$link" -flavor link /nologo /machine:arm64 /subsystem:console /entry:mainCRTStartup \
         /nodefaultlib "/out:$out/J316Tools.exe" "$out/tools.obj" \
         "$sdkarm/um/arm64/kernel32.Lib" "$sdkarm/um/arm64/crypt32.Lib" \
-        "$sdkarm/um/arm64/user32.Lib"
+        "$sdkarm/um/arm64/user32.Lib" "$sdkarm/um/arm64/advapi32.Lib"
 fi

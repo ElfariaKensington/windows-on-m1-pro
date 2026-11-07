@@ -64,6 +64,7 @@ def main():
             "native_input_test": "pending user test",
             "candidate": {"path": str(args.output), "sha256": digest(args.output)},
             "package": {name: digest(args.package / name) for name in files},
+            "startup_scripts": {name: digest(scratch / name) for name in ("start.cmd", "logs.cmd")},
             "base_wim_sha256": digest(args.base_wim), "boot_wim_sha256": digest(wim),
             "bcd_sha256": digest(args.bcd), "media_sha256": digest(media),
             "mu_sha256": digest(ROOT / "mu/Build/J316sSetup-AARCH64/DEBUG_CLANGPDB/FV/J316S_SETUP_EFI.fd"),

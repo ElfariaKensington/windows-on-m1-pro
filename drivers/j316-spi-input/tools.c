@@ -4,6 +4,7 @@
 #include <wincrypt.h>
 #include <winioctl.h>
 #include "certificate.h"
+#include "diagnostics.h"
 
 static void print(const char *s)
 { DWORD done; WriteFile(GetStdHandle(STD_OUTPUT_HANDLE), s, (DWORD)lstrlenA(s), &done, NULL); }
@@ -11,6 +12,10 @@ void mainCRTStartup(void)
 {
     const WCHAR *cmd = GetCommandLineW();
     while (*cmd && *cmd != L'/') ++cmd;
+    if (*cmd && (cmd[1] == L'w' || cmd[1] == L'd')) {
+        Sleep(cmd[1] == L'w' ? 20000 : 3000);
+        ExitProcess(0);
+    }
     DWORD result = 0;
     if (*cmd && cmd[1] == L't') {
         PCCERT_CONTEXT cert = CertCreateCertificateContext(X509_ASN_ENCODING,
@@ -29,22 +34,33 @@ void mainCRTStartup(void)
     } else {
         HANDLE device = CreateFileW(L"\\\\.\\J316SpiInput", GENERIC_READ,
                                     FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
-        if (device == INVALID_HANDLE_VALUE) {
-            char line[80]; wsprintfA(line, "J316SpiInput open error %lu\r\n", GetLastError()); print(line);
-            ExitProcess(1);
+        JI_DIAG diag; DWORD bytes = sizeof(diag);
+        BOOL live = device != INVALID_HANDLE_VALUE && DeviceIoControl(device,
+                CTL_CODE(FILE_DEVICE_UNKNOWN, 0x900, METHOD_BUFFERED, FILE_READ_ACCESS),
+                NULL, 0, &diag, sizeof(diag), &bytes, NULL);
+        if (device != INVALID_HANDLE_VALUE) CloseHandle(device);
+        if (!live) {
+            bytes = sizeof(diag);
+            result = RegGetValueW(HKEY_LOCAL_MACHINE,
+                L"SYSTEM\\CurrentControlSet\\Services\\J316SpiInput\\Parameters",
+                L"Snapshot", RRF_RT_REG_BINARY, NULL, &diag, &bytes);
         }
-        DWORD values[17], bytes;
-        if (!DeviceIoControl(device, CTL_CODE(FILE_DEVICE_UNKNOWN, 0x900, METHOD_BUFFERED, FILE_READ_ACCESS),
-                             NULL, 0, values, sizeof(values), &bytes, NULL)) result = GetLastError();
-        else {
-            const char *names[] = {"version","phase","status","booted","vendor","product",
-                "packets","malformed","timeouts","keyboard","mouse","submit_errors","resets",
-                "spi_control","spi_fifo","gpio_input","descriptor_size"};
-            for (unsigned i = 0; i < 17; ++i) {
+        if (!result && bytes == sizeof(diag) && diag.version == 2) {
+            print(live ? "Live internal SPI diagnostics\r\n" : "Saved internal SPI startup diagnostics\r\n");
+            if (diag.phase != 10) print("INPUT HAS NOT REACHED RUNNING STATE\r\n");
+            const char *names[] = {
+#define JI_NAME(name) #name,
+                JI_DIAGNOSTIC_FIELDS(JI_NAME)
+#undef JI_NAME
+            };
+            const uint32_t *values = (const uint32_t *)&diag;
+            for (unsigned i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
                 char line[100]; wsprintfA(line, "%s=%lu (0x%08lx)\r\n", names[i], values[i], values[i]); print(line);
             }
+        } else {
+            char line[100]; wsprintfA(line, "No saved startup diagnostics; registry error %lu\r\n", result); print(line);
+            result = result ? result : ERROR_INVALID_DATA;
         }
-        CloseHandle(device);
     }
     ExitProcess(result);
 }

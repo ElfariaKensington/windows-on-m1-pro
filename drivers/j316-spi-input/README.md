@@ -94,3 +94,22 @@ Native logs are in `X:\J316Input`. When the existing diagnostics volume is
 found through `J316S-DIAGNOSTICS.TARGET`, they are copied to `J316FreshInput`.
 Phase 10 means discovery and VHF startup completed; the keyboard/mouse counters
 then show whether hardware reports are reaching Windows.
+
+## First native result and failure diagnostics
+
+The first native boot reached Setup but neither built-in input worked. The
+diagnostics disk had no `J316FreshInput` directory, so no SPI startup boundary
+can be inferred from that run. A package-load success message was insufficient.
+
+Revision 2 saves startup phase, NTSTATUS, packet counters and SPI/GPIO state in
+the driver's Parameters registry key before returning a failed start. The
+diagnostic utility reads this snapshot when the failed device cannot be opened.
+The initial screen is held for 20 seconds and explicitly distinguishes package
+installation from hardware startup. Phase 2 waits for the boot notification;
+3 queries identity; 4–8 query interface information/descriptors; 9 creates HID;
+10 runs input; 11 rejects the resource set. SPI transaction behavior is unchanged
+in this diagnostic revision. It is not a claimed native-input fix.
+Setup also enables guest-volume automount and rescans before collecting logs;
+logs go only to the marked `J316S_DIAG` internal diagnostics volume.
+The base Setup WIM has no `timeout.exe`; waits use Kernel32 Sleep in the
+diagnostic utility, so the screen delay and logger do not depend on it.
