@@ -18,7 +18,8 @@ typedef struct {
     struct ji_assembly assembly;
     struct ji_mouse mouse;
     JI_DIAG diag;
-    UCHAR sequence, pending_sequence, pending_command, pending_report, pending_interface;
+    UCHAR sequence;
+    struct ji_control_request pending;
     UCHAR response[JI_DESCRIPTOR], keyboard_descriptor[JI_DESCRIPTOR];
     ULONG response_size, keyboard_descriptor_size;
     BOOLEAN response_ready, request_pending, mt_pending, output_pending;
@@ -122,8 +123,7 @@ static NTSTATUS send_command(JI_CONTEXT *c, UCHAR target, UCHAR command, UCHAR r
     UCHAR seq = c->sequence++;
     if (!ji_request(packet, target, command, report, iface, seq, reply, data, size))
         return STATUS_INVALID_PARAMETER;
-    c->pending_sequence = seq; c->pending_command = command;
-    c->pending_report = report; c->pending_interface = iface;
+    c->pending = (struct ji_control_request){command, report, iface, seq};
     c->response_size = 0; c->response_ready = FALSE;
     chip_select(c, TRUE);
     NTSTATUS status = transfer(c, packet, NULL, sizeof(packet));
@@ -153,9 +153,8 @@ static VOID message(void *context, uint8_t device, uint8_t flags,
     JI_CONTEXT *c = context;
     ULONG size = (ULONG)length - 10;
     const UCHAR *payload = m + 8;
-    if (flags == 0x40 && c->request_pending && m[3] == c->pending_sequence &&
-        m[0] == c->pending_command && m[1] == c->pending_report &&
-        m[2] == c->pending_interface && size <= sizeof(c->response)) {
+    if (c->request_pending && ji_is_control_reply(&c->pending, flags, m, length) &&
+        size <= sizeof(c->response)) {
         memcpy(c->response, payload, size); c->response_size = size;
         c->response_ready = TRUE;
     }
@@ -213,6 +212,31 @@ static NTSTATUS query(JI_CONTEXT *c, UCHAR report, UCHAR iface, USHORT reply)
     if (NT_SUCCESS(status)) status = wait_response(c, FALSE);
     c->request_pending = FALSE;
     return status;
+}
+
+static int32_t discovery_query(void *context, uint8_t report, uint8_t iface, uint16_t limit)
+{
+    JI_CONTEXT *c = context;
+    c->diag.phase = report == 1 ? 3 : report == 2 ? 4 + iface : 6 + iface;
+    snapshot(c);
+    NTSTATUS status = query(c, report, iface, limit);
+    if (!NT_SUCCESS(status)) return status;
+    if (report == 1) {
+        if (c->response_size < 24 || c->response[4] < 3 ||
+            c->response[6] != 0xac || c->response[7] != 5)
+            return STATUS_DEVICE_PROTOCOL_ERROR;
+        c->diag.vendor = c->response[6] | ((ULONG)c->response[7] << 8);
+        c->diag.product = c->response[8] | ((ULONG)c->response[9] << 8);
+    } else if (report == 0x10 && iface == 1) {
+        if (!c->response_size) return STATUS_DEVICE_PROTOCOL_ERROR;
+        if (c->keyboard_hid && (c->keyboard_descriptor_size != c->response_size ||
+            memcmp(c->keyboard_descriptor, c->response, c->response_size)))
+            return STATUS_DEVICE_PROTOCOL_ERROR;
+        memcpy(c->keyboard_descriptor, c->response, c->response_size);
+        c->keyboard_descriptor_size = c->response_size;
+        c->diag.descriptor_size = c->response_size;
+    }
+    return STATUS_SUCCESS;
 }
 
 static NTSTATUS create_hid(JI_CONTEXT *c, UCHAR *descriptor, USHORT size,
@@ -279,32 +303,8 @@ NTSTATUS JiPowerOn(WDFDEVICE device, WDF_POWER_DEVICE_STATE previous)
     c->diag.phase = 16; snapshot(c); sleep_ms(50);
     c->diag.phase = 2; snapshot(c);
     status = wait_response(c, TRUE); if (!NT_SUCCESS(status)) goto fail;
-    c->diag.phase = 3; snapshot(c);
-    status = query(c, 1, 0xd0, 0); if (!NT_SUCCESS(status)) goto fail;
-    if (c->response_size < 24 || c->response[4] < 3 ||
-        c->response[6] != 0xac || c->response[7] != 5) {
-        status = STATUS_DEVICE_PROTOCOL_ERROR; goto fail;
-    }
-    c->diag.vendor = c->response[6] | ((ULONG)c->response[7] << 8);
-    c->diag.product = c->response[8] | ((ULONG)c->response[9] << 8);
-    for (UCHAR iface = 0; iface < 3; ++iface) {
-        c->diag.phase = 4 + iface;
-        snapshot(c);
-        status = query(c, 2, iface, JI_DESCRIPTOR); if (!NT_SUCCESS(status)) goto fail;
-        if (c->response_size < 16) { status = STATUS_DEVICE_PROTOCOL_ERROR; goto fail; }
-    }
-    c->diag.phase = 7; snapshot(c);
-    status = query(c, 0x10, 1, JI_DESCRIPTOR); if (!NT_SUCCESS(status)) goto fail;
-    if (!c->response_size) { status = STATUS_DEVICE_PROTOCOL_ERROR; goto fail; }
-    if (c->keyboard_hid && (c->keyboard_descriptor_size != c->response_size ||
-        memcmp(c->keyboard_descriptor, c->response, c->response_size))) {
-        status = STATUS_DEVICE_PROTOCOL_ERROR; goto fail;
-    }
-    memcpy(c->keyboard_descriptor, c->response, c->response_size);
-    c->keyboard_descriptor_size = c->response_size;
-    c->diag.descriptor_size = c->response_size;
-    c->diag.phase = 8; snapshot(c);
-    status = query(c, 0x10, 2, JI_DESCRIPTOR); if (!NT_SUCCESS(status)) goto fail;
+    status = (NTSTATUS)ji_discover(discovery_query, c);
+    if (!NT_SUCCESS(status)) goto fail;
     c->diag.phase = 9; snapshot(c);
     if (!c->keyboard_hid) {
         status = create_hid(c, c->keyboard_descriptor, (USHORT)c->keyboard_descriptor_size,

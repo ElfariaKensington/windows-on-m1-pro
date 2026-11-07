@@ -120,3 +120,24 @@ while PnP startup is still asynchronous. The screen now refreshes seven times
 over 21 seconds. Checkpoints 12–16 distinguish completed SPI setup, completed
 input-pin setup and each high/low/high reset delay. SPI transactions are
 unchanged; the next causal decision must use the final refreshed sample.
+
+## Discovery correction from the native recording
+
+The final recording sample reached phase 4 with `0xc00000b5`, identity
+`05ac:0343`, 19 valid packets, 14 keyboard reports and 2 mouse reports.
+Reset, SPI receive and input decoding were operating. The Windows source
+aborted at the management interface-information query before creating VHF HID
+devices, so received input could not reach Windows.
+
+Discovery now treats interface-information responses as advisory, following
+[Asahi's probe and response dispatcher](https://github.com/AsahiLinux/linux/blob/asahi/drivers/hid/spi-hid/spi-hid-apple-core.c).
+The source no longer requires the response counter to echo the request counter;
+one outstanding query is matched by response type, report and interface after
+packet/message CRC validation. Identity and HID-descriptor discovery remain
+required. The recording did not capture the response counter, so its exact
+contribution to the timeout is unproven.
+
+Both regressions failed with the previous strict policy and pass with this
+change. Tests cover missing optional metadata, required-query failures,
+different response counters, wrong interfaces/types, interleaved input and bad
+CRCs. The correction still requires native keyboard/touchpad validation.

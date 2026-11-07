@@ -8,6 +8,27 @@ static unsigned le16(const uint8_t *p) { return p[0] | ((unsigned)p[1] << 8); }
 static int signed16(const uint8_t *p) { return (int16_t)le16(p); }
 static void put16(uint8_t *p, unsigned v) { p[0] = (uint8_t)v; p[1] = (uint8_t)(v >> 8); }
 
+int ji_is_control_reply(const struct ji_control_request *r, uint8_t flags,
+                         const uint8_t *m, size_t n)
+{
+    return n >= 10 && flags == 0x40 && le16(m + 6) == n - 10 &&
+           m[0] == r->command && m[1] == r->report && m[2] == r->interface_id;
+}
+
+int32_t ji_discover(ji_discovery_query_fn query, void *context)
+{
+    int32_t status = query(context, 1, 0xd0, 0);
+    if (status < 0) return status;
+    for (uint8_t iface = 0; iface < 3; ++iface) {
+        /* Metadata is advisory in Asahi's probe. Identity and the HID
+         * descriptors below remain mandatory for this source driver. */
+        (void)query(context, 2, iface, JI_DESCRIPTOR);
+    }
+    status = query(context, 0x10, 1, JI_DESCRIPTOR);
+    if (status < 0) return status;
+    return query(context, 0x10, 2, JI_DESCRIPTOR);
+}
+
 uint16_t ji_crc(const uint8_t *p, size_t n)
 {
     uint16_t crc = 0;

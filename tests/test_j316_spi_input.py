@@ -32,6 +32,27 @@ class J316SpiProtocolTests(unittest.TestCase):
             self.assertIn("100000 malformed packets PASS", result.stdout)
 
 
+class J316DiscoveryTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        compiler = shutil.which(os.environ.get("CC", "clang"))
+        if not compiler:
+            raise unittest.SkipTest("A C compiler is required")
+        cls.temp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(cls.temp.cleanup)
+        cls.executable = Path(cls.temp.name) / "discovery-test"
+        subprocess.run([compiler, "-std=c11", "-Wall", "-Wextra", "-Werror",
+                        "-fsanitize=address,undefined", "-g", str(SOURCE / "protocol.c"),
+                        str(SOURCE / "discovery_test.c"), "-o", str(cls.executable)],
+                       check=True, capture_output=True)
+
+    def test_per_type_reply_counter_and_interleaved_input(self):
+        subprocess.run([str(self.executable), "replies"], check=True, capture_output=True)
+
+    def test_optional_metadata_and_required_identity_descriptors(self):
+        subprocess.run([str(self.executable), "metadata"], check=True, capture_output=True)
+
+
 class J316StagingTests(unittest.TestCase):
     def setUp(self):
         spec = importlib.util.spec_from_file_location("j316_stage", SOURCE / "stage.py")

@@ -18,6 +18,15 @@ struct ji_mouse {
     int x, y, contacts, rem_x, rem_y, scroll_x, scroll_y;
     uint8_t buttons;
 };
+struct ji_control_request {
+    uint8_t command, report, interface_id, sequence;
+};
+/* Reply matching follows validated message semantics; counters are per type. */
+int ji_is_control_reply(const struct ji_control_request *, uint8_t flags,
+                         const uint8_t *message, size_t size);
+typedef int32_t (*ji_discovery_query_fn)(void *, uint8_t report,
+                                        uint8_t interface_id, uint16_t limit);
+int32_t ji_discover(ji_discovery_query_fn, void *);
 
 uint16_t ji_crc(const uint8_t *data, size_t size);
 size_t ji_request(uint8_t packet[JI_PACKET], uint8_t target, uint8_t command,
