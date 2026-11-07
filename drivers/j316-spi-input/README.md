@@ -113,3 +113,10 @@ Setup also enables guest-volume automount and rescans before collecting logs;
 logs go only to the marked `J316S_DIAG` internal diagnostics volume.
 The base Setup WIM has no `timeout.exe`; waits use Kernel32 Sleep in the
 diagnostic utility, so the screen delay and logger do not depend on it.
+
+The next native photo showed phase 1/status `0x103` (pending) and zero packets.
+That was a single early sample, not proof that reset stalled: DrvLoad completes
+while PnP startup is still asynchronous. The screen now refreshes seven times
+over 21 seconds. Checkpoints 12–16 distinguish completed SPI setup, completed
+input-pin setup and each high/low/high reset delay. SPI transactions are
+unchanged; the next causal decision must use the final refreshed sample.

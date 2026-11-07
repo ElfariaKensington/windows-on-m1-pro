@@ -267,11 +267,16 @@ NTSTATUS JiPowerOn(WDFDEVICE device, WDF_POWER_DEVICE_STATE previous)
     modify(c->spi, 0x150, (1u << 24) | (0x3fu << 16), 8u << 16);
     modify(c->spi, 0x154, 1u << 9, 2);
     wr(c->spi, 0x30, 3); wr(c->spi, 0x160, 0); wr(c->spi, 0x168, 0);
+    c->diag.phase = 12; snapshot(c);
     /* Sample the input without enabling GPIO interrupt generation. */
     modify(c->nub, 6 * 4, 0x7006f, (7u << 1) | (1u << 9));
-    modify(c->ap, 194 * 4, 15, 3); sleep_ms(5);
-    modify(c->ap, 194 * 4, 15, 2); sleep_ms(5);
-    modify(c->ap, 194 * 4, 15, 3); sleep_ms(50);
+    c->diag.phase = 13; snapshot(c);
+    modify(c->ap, 194 * 4, 15, 3);
+    c->diag.phase = 14; snapshot(c); sleep_ms(5);
+    modify(c->ap, 194 * 4, 15, 2);
+    c->diag.phase = 15; snapshot(c); sleep_ms(5);
+    modify(c->ap, 194 * 4, 15, 3);
+    c->diag.phase = 16; snapshot(c); sleep_ms(50);
     c->diag.phase = 2; snapshot(c);
     status = wait_response(c, TRUE); if (!NT_SUCCESS(status)) goto fail;
     c->diag.phase = 3; snapshot(c);
