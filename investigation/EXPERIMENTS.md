@@ -56837,3 +56837,286 @@ J316S-DIAG-FLAG-001 ACTUAL 2026-11-06T19:28:50Z: user reports no working input. 
 J316S-DIAG-RESCAN-001 BEFORE 2026-11-06T19:33:01+00:00: stage v6 per user request. WHY THIS HYPOTHESIS: v5 diagnostics slice stayed pristine and its collector attempted volume discovery only before the disk rescan. v6 retries the marked volume after rescan and during collection. Loader and Mu hashes match v5. Candidate 5cef1fecbcc1a0de7579caad59c04f11a4053242ac8694ba82d05d7f1f61c520; EFI 0aade2a1fd29e15fdd3b7de7a253c1a437e3fad4d947f80e662dc93a042f4a34; exact v5 rollback 5728246496a147514877780e88acc32e35355d2aba70d211a442cbae3fed77ea. Stage command .build/j316s-stage-v6.sh gates disk0s4 by identity and previous image SHA, then verifies full readback. Expected: v6 installed, next user boot can save logs if Windows mounts the slice. No automated reboot.
 
 J316S-DIAG-RESCAN-001 STAGED 2026-11-06T19:34:45Z: full disk0s4 readback SHA256 0aade2a1fd29e15fdd3b7de7a253c1a437e3fad4d947f80e662dc93a042f4a34. v6 staging verified. WinPE log persistence and input pending native boot.
+
+J316S-DIAG-RESCAN-001 READBACK 2026-11-06T19:48:06Z: user requested log review after v6 staging. Read disk0s5 (UUID 5049FF3D-2D11-4F0E-A1A8-AD982821D308) without writing to it. J316sInputLogs is empty. Full 6,419,382,272-byte readback at .build/j316s-diagnostics/v6-logs.jhE02e/readback.img SHA256 1b09497fe447228ae6e63859f37e05656a5c95f976ebd192868fa8c736b6a134 equals pristine. No evidence of WinPE writes or driver state from this readback.
+
+
+## J316S-FRESH-SPI-001 — independent input driver, 2026-11-07
+
+WHY THIS HYPOTHESIS:
+- Live MacBookPro18,1 IODeviceTree identifies SPI3 0x39b10c000, AP GPIO
+  enable 194 and NUB input 6; current EL2/Mu expose exactly these resources.
+- Current Asahi source documents the reset, CS delays, packet/message CRCs,
+  descriptor discovery and 46 + 30*N touch format; live IOHID confirms a
+  standard keyboard descriptor. A separate VHF source can implement them.
+- No old commits or prior AppleInput source were consulted or reused.
+
+Scope: a new J316SpiInput package replaces input software in a fresh Microsoft
+Setup WIM. Current m1n1/Mu boot substrate and resource contract are preserved.
+Root branch port/j316s-bringup; base 6202b0fcc9afdf7f92e3bfd9fa168e3e912460e2;
+m1n1 f640516128dc0ab58b11a347e746ee6c4fc7baa7;
+Mu 6a0ac8607c98730db96167924638989306b6ac90. Pre-existing user changes in
+GPU_CURRENT_STATE.md, EXPERIMENTS.md and three diagnostics scripts are retained.
+
+Completed offline runs (recorded retrospectively): ARM64 WDK cross-build passes
+with source warnings as errors; ASan/UBSan behavioral tests pass including
+100000 malformed inputs. A disposable QEMU/HVF WinPE machine produced the
+catalog with the official SDK makecat tool. Superfloppy boot returned EFI
+No mapping; GPT-wrapped media booted WinPE. The first launcher opened a shell
+because LaunchApp does not accept CommandLine; corrected to LaunchApps. ESP
+assignment is explicit inside the disposable guest. No host block devices
+were attached to QEMU. The test-signed SYS and CAT verify cryptographically.
+This establishes packaging only, not native input operation.
+
+Pending: Windows package acceptance, hash-pinned candidate/manifest generation,
+then a full backup of disk0s4 before changing its m1n1/boot.bin. Target identity
+must remain UUID 9FBC60EC-E8FD-4270-8C54-B18BB7DDD4AE, 1000341504 bytes.
+No reboot is requested: the user will perform native input testing. Recovery
+is return to macOS and restore the complete partition backup or original
+boot.bin. Failure criterion: package rejection or staging/readback mismatch.
+Native pass criterion (unrun): Setup starts, keyboard types, pointer moves,
+click/drag and two-finger scrolling work. Append actual artifact hashes,
+commands, acceptance result and staging outcome before handing off.
+
+J316S-FRESH-SPI-001 preregistration 2026-11-07T10:11:12.159026+00:00:
+implementation 98e48c4b32c72bd9f606600376238351fb422a15; driver/packaging/stager source in drivers/j316-spi-input.
+Candidate SHA256 4dc758152ab92c1a1951bdd4c4d30de9459a3937d12b0ca0b0909a8a4a057749;
+full ESP SHA256 81e7231ea13ab22cc1c593c1b3a0bcc6cb405fb06eb3ad4a3d3aa7fc767c9815;
+rollback ESP SHA256 0aade2a1fd29e15fdd3b7de7a253c1a437e3fad4d947f80e662dc93a042f4a34;
+rollback payload SHA256 5cef1fecbcc1a0de7579caad59c04f11a4053242ac8694ba82d05d7f1f61c520.
+Manifest: dist/j316s/J316s-Setup-fresh-spi.manifest.json.
+Stage command: /opt/homebrew/bin/python3 drivers/j316-spi-input/stage.py
+/Users/elfaria/win11/windows-on-m1/dist/j316s/J316s-Setup-fresh-spi.manifest.json
+(admin privileges). The stager verifies UUID/size/model, current and backup
+hashes before writing, then verifies the complete partition readback and
+restores the backup automatically on failure. Native test remains unrun.
+Windows ARM64 DevCon smoke test: package installed, VHF lower filter present,
+DriverEntry/AddDevice/PrepareHardware reached; deliberately missing resources
+returned 0xc0000182 (expected). No physical SPI MMIO was used by this test.
+
+J316S-FRESH-SPI-001 staging result 2026-11-07T10:12:21.785933+00:00:
+Installed on /dev/rdisk0s4; complete 1000341504-byte readback SHA256
+81e7231ea13ab22cc1c593c1b3a0bcc6cb405fb06eb3ad4a3d3aa7fc767c9815 matches the preregistered image.
+Receipt: dist/j316s/J316s-Setup-fresh-spi.manifest.installed.json. Original boot payload and full ESP backup
+remain in .build/j316s-fresh-input. Restore launcher:
+.build/j316s-fresh-input/Restore-previous-Windows-Setup.command.
+No reboot or physical SPI input test was performed. Display/keyboard/touchpad,
+USB, SSH, storage and SMP operation under this candidate remain unobserved.
+Verdict: package/kernel-load/resource-rejection checks PASS; staging and
+full-partition readback PASS; native input qualification PENDING user test.
+Seven focused tests pass, including CRC/reassembly/mouse behavior, 100000
+malformed packets under ASan/UBSan, identity/hash/mount refusal and rollback.
+The existing global change-ledger test fails on a pre-existing change_type=fix
+row; this new row uses feature/implemented and does not claim hardware validation.
+Next causal checkpoint: boot Windows Setup and observe phase 10, keyboard
+report counters, and touchpad pointer/click/scroll behavior.
+
+
+## J316S-FRESH-SPI-001 native failure; J316S-FRESH-SPI-002 diagnostics
+Recorded 2026-11-07T10:38:41.668008+00:00. User native verdict: Windows Setup reached, brief driver-load
+success message, built-in M1 Pro keyboard and touchpad both fail. This rejects
+any native-input success interpretation. Read-only disk0s5 capture at
+.build/j316s-fresh-input/native-failure-001/diagnostics.img has the marker and
+an empty J316sInputLogs directory, no J316FreshInput. No native phase is known.
+WHY THIS HYPOTHESIS:
+- The failed FDO cannot be opened to read its startup failure; original logging
+  depended on that handle and an unmounted internal diagnostics volume.
+- The pristine WinPE WIM lacks timeout.exe, so the logger's delay was broken.
+- Windows ARM64 DevCon negative test now returns saved phase 11/status c0000182
+  through the registry after the resource-less device fails, proving visibility.
+Single variable: startup-failure observability. SPI reset, transfers, ACK policy,
+GPIO mode and hardware resource policy remain unchanged. No SPI fix is claimed.
+Sources: current Asahi spi-apple.c, spi-hid-apple-core.c, pinctrl-apple-gpio.c;
+current m1n1 pmgr and SPI register definitions; Microsoft WDF registry APIs.
+Additional U-Boot source checked current only; no shifter change justified.
+Implementation 3a74750faf818bf1b2cf49a267a0e719ee597d83, branch port/j316s-bringup; unchanged m1n1
+f640516128dc0ab58b11a347e746ee6c4fc7baa7, Mu 6a0ac8607c98730db96167924638989306b6ac90.
+Build: build.sh with JI_OUTPUT=.build/j316s-fresh-input/build-v2; official WDK
+MakeCat in disposable Windows ARM64, local test signatures verified; focused
+7 tests PASS and actual Windows failed-start snapshot regression PASS.
+Final startup scripts and package hashes: dist/j316s/J316s-Setup-internal-spi-diagnostics.manifest.json.
+Candidate 55ede128b430e68989e93541151c561fb0397725caaa51bd1d9113db9f7561bd; ESP 85210072f4b51b3783847c9dfb052d8fe1c04b1794e7fd7f9c39dffffa2f93b8;
+previous ESP 81e7231ea13ab22cc1c593c1b3a0bcc6cb405fb06eb3ad4a3d3aa7fc767c9815; original recovery remains retained.
+Stage: /opt/homebrew/bin/python3 drivers/j316-spi-input/stage.py /Users/elfaria/win11/windows-on-m1/dist/j316s/J316s-Setup-internal-spi-diagnostics.manifest.json
+with administrator privileges, no reboot. Expected checkpoint: saved actual
+phase/status visible for 20 seconds, logging to internal J316S_DIAG only.
+Failure criterion: absent snapshot or readback mismatch. Native SPI input
+remains failed/unqualified until actual evidence changes that verdict.
+
+J316S-FRESH-SPI-002 stage result 2026-11-07T10:40:21.552770+00:00:
+internal ESP install and complete 1000341504-byte readback PASS, SHA256
+85210072f4b51b3783847c9dfb052d8fe1c04b1794e7fd7f9c39dffffa2f93b8. No reboot or native input success claimed.
+Current host is macOS/Darwin, no proxy USB endpoints or active launcher;
+WinPE has no SSH control service. Next operator boot is required to read the
+actual failure phase/status. USB media was neither changed nor used for staging.
+
+
+## J316S-FRESH-SPI-003 — asynchronous status visibility, 2026-11-07T10:55:27.488024+00:00
+Native photo .build/j316s-fresh-input/native-failure-002/startup-photo.jpg
+SHA256 e6eca980c1c57e18e140ce5a24780635ddd6111af7fce22c6f1e3fa19ab72f30 shows saved phase1,
+STATUS_PENDING 0x103, packet/keyboard/mouse counters0; SPI/GPIO reads worked.
+This is not a terminal fault code: DrvLoad and PnP startup are asynchronous,
+and the old screen displayed only the initial sample. A fresh internal disk0s5
+capture still contains no J316FreshInput logs. No stall cause is inferred.
+WHY THIS HYPOTHESIS:
+- The displayed sample is taken before the high/low/high reset finishes.
+- The screen was never refreshed during its delay, so later errors were hidden.
+- Actual Windows ARM64 regression reproduced pending->timeout and the new loop
+showed phases [1,1,2,2,2,2,2], replacing the stale pending value.
+Single variable: startup observability. No timer workaround, SPI transfer, IRQ,
+clock, GPIO level or HID protocol change. Read-only checkpoints12-16 bracket
+SPI programming, NUB input setup and each minimum reset wait. Compiled stores
+are ordinary 32-bit STR instructions, supported by the current EL2 hook.
+Source 9427a90be2d6d7feb1a66802f54b795ca8c31d4a, branch port/j316s-bringup; m1n1 f640516128dc0ab58b11a347e746ee6c4fc7baa7;
+Mu 6a0ac8607c98730db96167924638989306b6ac90; neither submodule changed.
+Build uses build.sh with build-v3 output, official WDK catalog tool and existing
+development signer. WIM integrity, Mu resources and package signature verified;
+focused7 tests PASS; Windows asynchronous-screen regression PASS (simulated
+registry transition, not real SPI).
+Candidate 3f5b72978da6142444eb3c7ffdcc966108d9483017183a1184ed551cd7e2269d; ESP 5852e6ce26bb4dab95e548ec8bd9ba173f40c05c843eb52416f2475d3592eb8d;
+rollback ESP 85210072f4b51b3783847c9dfb052d8fe1c04b1794e7fd7f9c39dffffa2f93b8. Manifest dist/j316s/J316s-Setup-internal-spi-live-status.manifest.json.
+Stage: /opt/homebrew/bin/python3 drivers/j316-spi-input/stage.py /Users/elfaria/win11/windows-on-m1/dist/j316s/J316s-Setup-internal-spi-live-status.manifest.json
+with administrator privileges. Expected native checkpoint: sample7 reports
+the current startup phase/status; phases12-16 localize any reset stall.
+Failure criterion: stale pending sample or full readback mismatch. Original
+recovery and prior ESP images retained. No native input success is claimed.
+
+J316S-FRESH-SPI-003 staging result 2026-11-07T10:56:28.677019+00:00:
+internal disk0s4 full 1000341504-byte readback PASS:
+5852e6ce26bb4dab95e548ec8bd9ba173f40c05c843eb52416f2475d3592eb8d. Receipt dist/j316s/J316s-Setup-internal-spi-live-status.manifest.installed.json.
+No native input verdict; next sample7 is needed. SPI behavior is unchanged.
+
+
+## J316S-FRESH-SPI-004 — discovery admission correction, 2026-11-07T11:22:15.834371+00:00
+WHY THIS HYPOTHESIS:
+- Native IMG_0387.mov sample7: phase4 c00000b5, booted1, VID/PID05ac:0343,
+  packets19, keyboard14, mouse2, malformed0, PIOtimeouts0, badACK0. SPI input
+  is received but management metadata timeout aborts before VHF creation.
+- Asahi spi-hid-apple-core.c treats interface information as advisory; its
+  response dispatcher checks command/report/interface without a counter echo.
+- Previous strict discovery regressed both cases offline: different reply
+  counter and missing optional metadata were RED, now both GREEN.
+Exact response counter was not captured in the native recording, so do not
+claim that mismatch alone is the proven hardware cause. Mandatory metadata
+was demonstrably the abort gate. One discovery-policy correction includes
+these independently tested contract defects; SPI timing/registers, reset, IRQ,
+GPIO, VHF descriptors and power policy remain unchanged.
+Evidence: .build/j316s-fresh-input/native-failure-003/observation.json and
+IMG_0387.mov (local copy), selected frames01/04/07.
+Implementation 740ec67ed14feeeed5aed8164e1f776c0f13997b, branch port/j316s-bringup; root dirty diff
+6124696ffae71565cc9059002c95e4f1c2055dede273067052a7f56dd892a08f; m1n1 f640516128dc0ab58b11a347e746ee6c4fc7baa7;
+Mu 6a0ac8607c98730db96167924638989306b6ac90, both unchanged.
+Build: build.sh with JI_OUTPUT=.build/j316s-fresh-input/build-v4; official WDK
+catalog generation in local Windows ARM64, development signing. ARM64 build
+and 9 focused tests PASS including ASan/UBSan, CRC and interleaved-input checks,
+wrong-interface rejection and required identity/descriptor failures. Signature,
+WIM integrity, Mu resources and extracted ESP boot payload hash verified.
+Candidate be6fa20b276e05bce299adced6727826f5396e964c393b00cff6aca20da0206b; ESP 74ea9382ad5067ff76ebc8cb4f2c083373280b2d5446242bbbb6b27a19e28910;
+rollback 5852e6ce26bb4dab95e548ec8bd9ba173f40c05c843eb52416f2475d3592eb8d. Manifest dist/j316s/J316s-Setup-internal-spi-discovery-fix.manifest.json.
+Stage command: /opt/homebrew/bin/python3 drivers/j316-spi-input/stage.py /Users/elfaria/win11/windows-on-m1/dist/j316s/J316s-Setup-internal-spi-discovery-fix.manifest.json
+with administrator privileges, no reboot. Expected native checkpoint: advance
+beyond optional metadata to descriptor discovery, VHF startup/phase10, and
+functional built-in typing/pointer. Failure criterion: required descriptor or
+VHF failure, lack of delivered input, or staging/readback mismatch. Original
+recovery and all prior full ESP images remain available.
+
+J316S-FRESH-SPI-004 install result 2026-11-07T11:24:00.577893+00:00:
+internal disk0s4 installed and complete 1000341504-byte readback PASS:
+74ea9382ad5067ff76ebc8cb4f2c083373280b2d5446242bbbb6b27a19e28910. Receipt dist/j316s/J316s-Setup-internal-spi-discovery-fix.manifest.installed.json.
+No reboot performed; native input qualification pending user retest.
+
+
+## J316S-FRESH-SPI-004 native result, 2026-11-07T12:08:49.884744+00:00
+IMG_0388.mov SHA256 a7ce4e8646ce800ae4b4e2d57744567fc73acf284e708932f486e55d982d6fd2
+preserved in .build/j316s-fresh-input/native-failure-004. Sample6: phase10,
+status0, descriptor90, packets586, keyboard128, mouse449, malformed/timeouts/
+submit_errors/bad_acks all0. User still reports neither internal input working.
+Verdict: discovery correction confirmed; end-to-end native input FAILED.
+Phase10 and successful report submission do not prove HID class delivery.
+
+## J316S-FRESH-SPI-005 — Windows HID child binding, 2026-11-07T12:08:49.884744+00:00
+WHY THIS HYPOTHESIS:
+- Native phase10 has both decoded input streams with no transport/submit errors.
+- Stock Setup has mshidkmdf.sys but omits mshidkmdf.inf. Its hidvhf.inf
+  Include/Needs chain cannot install a function service. The matching full
+  Windows image has the INF and an identical mshidkmdf.sys SHA256
+  c363d97c5f036acc7a863e98d949c32873a056b37aabef02a17b37a3a9fe272c.
+- The resource-free ARM64 VM reproduced both children failing 0xe0000219.
+  Selecting the self-contained bridge gave key_down_samples749/cursor_changes100,
+  started kbdhid/kbdclass and mouhid/mouclass. Logs: vhf-probe/force-*.log.
+Single variable: Windows child binding. Hardware clocks/reset/SPI/report codecs
+are unchanged. Private J316SPI\VHF_INPUT ID selects existing signed Microsoft
+mshidkmdf.sys with fresh project INF; no Microsoft source or binary copied.
+The broken generic inbox ID outranks our specific second ID (00ff0000 vs
+00ff0001), so supported UpdateDriverForPlugAndPlayDevices FORCE selects only
+our exact ID after both children appear. No FeatureScore workaround.
+Sources: current driver/protocol, live keyboard descriptor, installed Microsoft
+hidvhf.inf and full-image mshidkmdf.inf, Microsoft VHF_CONFIG and NewDev API docs.
+Repo windows-on-m1 branch port/j316s-bringup; commits {"root": "52b63d638ec81d19ff9a7119588dce9afe4fb0d5", "m1n1": "f640516128dc0ab58b11a347e746ee6c4fc7baa7", "Mu": "6a0ac8607c98730db96167924638989306b6ac90"}.
+Pre-build dirty tracked diff SHA256 e02ebe4e27b68d9facfc6434c1299723ea2463769b1dce73fe22d96c4ae6c628; includes preserved user changes.
+Build: JI_OUTPUT=$PWD/.build/j316s-fresh-input/build-v5 JI_CERTIFICATE=$PWD/.build/j316s-fresh-input/build-v4/J316SpiInput.cer bash drivers/j316-spi-input/build.sh;
+embedded SYS and MakeCat catalog signed with existing local test signer.
+Image: python3 drivers/j316-spi-input/build-image.py --package .build/j316s-fresh-input/build-v5 --base-wim .build/j316s-fresh-input/base.wim --setup-source /Users/elfaria/win11/Media/J316s-Windows-Setup-USB --bcd .build/j316s-fresh-input/BCD-testsigning --wimboot .build/j316s-fresh-input/wimboot.arm64 --output dist/j316s/J316s-Setup-internal-hid-bridge.bin
+The source path above is a directory on the internal SSD. Install target is
+internal EFI disk0s4 only. Image hashes and source commit will be appended before
+stage.py installation; native reboot remains operator-controlled.
+Recovery: exact previous esp-internal-discovery-fix-v4.img SHA256
+74ea9382ad5067ff76ebc8cb4f2c083373280b2d5446242bbbb6b27a19e28910.
+Expected: final signed-package VM regression has nonzero keys AND movement
+using the actual start.cmd + J316Tools /bind; then full ESP readback matches.
+Native checkpoint: real keyboard typing and touchpad movement in Setup. Failure:
+missing class devices or no actual input. Native success remains unqualified
+until the operator tests. Evidence .build/j316s-fresh-input/vhf-probe/final-*.
+
+J316S-FRESH-SPI-005 offline result: final signed package, actual start.cmd and
+J316Tools /bind: result0; keyboard_down_samples759 cursor_changes101; both class
+stacks Started. Nine focused tests PASS; ARM64 WDK build warnings/errors0.
+First image-pack attempt failed before output because llvm-nm was outside PATH;
+retry uses PATH=/opt/homebrew/opt/llvm/bin:$PATH, with unchanged signed package.
+Evidence .build/j316s-fresh-input/vhf-probe/regression-result.json.
+
+J316S-FRESH-SPI-005 pre-install artifacts 2026-11-07T12:11:53.923220+00:00: source d92213c9b2817fda3f52edde5b313976ade636eb;
+VM/native package and both startup-script hashes identical PASS.
+Candidate SHA256 299688c2b21ceb87941ccd8fc6c969f285f0f18d46014062632a8d62d2e1b369;
+ESP image SHA256 69e26c15f520b4bd81b9867c2375f75f4cbad77c2a2ccaf4665e62d38d66fa41; size 1000341504.
+Manifest dist/j316s/J316s-Setup-internal-hid-bridge.manifest.json. Boot file extracted from candidate ESP matches.
+Install: osascript administrator invocation of /opt/homebrew/bin/python3
+drivers/j316-spi-input/stage.py dist/j316s/J316s-Setup-internal-hid-bridge.manifest.json; target disk0s4 only;
+previous image and original recovery chain preserved. No native launchers or
+proxy endpoints detected; running OS Darwin, native WinPE has no SSH service.
+
+J316S-FRESH-SPI-005 stage result 2026-11-07T12:12:44.251288+00:00: installed on INTERNAL EFI
+disk0s4; all1000341504 bytes read back; SHA256 69e26c15f520b4bd81b9867c2375f75f4cbad77c2a2ccaf4665e62d38d66fa41.
+Receipt dist/j316s/J316s-Setup-internal-hid-bridge.manifest.installed.json. Recovery launcher remains .build/j316s-fresh-input/Restore-previous-Windows-Setup.command
+with new-manifest -> previous-v4 -> original chain preserved. No reboot or
+native Windows run performed. Native stop code, display/input/class delivery,
+SSH and CPU state were not measured in this stage; host remains macOS.
+Verdict: Windows delivery correction verified in VM; internal installation
+verified; actual built-in M1 Pro keyboard/touchpad operation pending user test.
+
+J316S-FRESH-SPI-005 native result 2026-11-07T12:27:13.642716+00:00: user explicitly confirms built-in input
+works. Photo SHA256 3509d23ecb621a53477d5bd1a66d8873093837ffc27a0048f22528409e6723eb
+shows pointer and Setup Load Driver dialog with only J316S_DIAG and X:.
+Input is native-qualified for this checkpoint; installation media/target missing.
+
+## J316S-INSTALL-001 preflight 2026-11-07T12:27:13.642716+00:00
+WHY THIS HYPOTHESIS: RAM boot includes boot.wim only; physical source install.swm
+is not exposed to guest. The only bounded disk is the6.4GB diagnostic container;
+macOS APFS484GB has97GB free but no installation partition.
+Plan: reclaim obsolete generated outputs and losslessly compress two raw evidence
+copies; retain all manifests, active input image and every referenced rollback.
+Then reserve80GB from macOS with supported APFS resize into an explicit private
+GPT container. Existing EFI, stub, diagnostics and Recovery partitions preserved.
+Preflight disk/APFS/resize snapshots in .build/j316s-install; no partition writes
+until checked layout, recovery backup, image and install path are concrete.
+
+J316S-INSTALL-001 implementation checkpoint 2026-11-07T14:45:01.350414+00:00: storage-role m1n1 commit
+2bc5c28284f3ef70c935dd03e14255488d3e8d85; 4 storage host checks and sanitized GPT check PASS;
+18 Python checks PASS. Full host suite stopped in unchanged asc_tx_gate_test
+on compiler uninitialized-const-pointer warnings. Reclaimed37770419592 bytes
+from generated outputs/compressed evidence. Physical partition layout still
+unchanged at this checkpoint. Windows VM harness corrected CLI colons, XML
+namespace, missing test-only product key, and wrong automatic ESP selection;
+explicit Disk0 NTFS partition3 now under installation test. Production keeps
+partition selection interactive. Source image80GB hash
+c5d72f9fa32d01d4235735b46720f1ea4e62678f878ef0e8b95a19136922f03d.

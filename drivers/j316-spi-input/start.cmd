@@ -43,5 +43,9 @@ for /l %%N in (1,1,7) do (
 pnputil /enum-devices /class HIDClass /services /stack > X:\J316Input\hid-children.log 2>&1
 pnputil /enum-devices /class Keyboard /services /stack > X:\J316Input\keyboard.log 2>&1
 pnputil /enum-devices /class Mouse /services /stack > X:\J316Input\mouse.log 2>&1
-X:\sources\setup.exe
+if exist X:\J316Install\launch.cmd (
+    call X:\J316Install\launch.cmd
+) else (
+    X:\sources\setup.exe
+)
 cmd.exe

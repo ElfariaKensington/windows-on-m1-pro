@@ -1,3 +1,26 @@
+## J316 internal installation boundary (2026-11-07)
+
+User confirmed internal keyboard and touchpad working with J316S-FRESH-SPI-005.
+The Setup Load Driver screen is missing install media/target, not failed input.
+J316S-INSTALL-001 adds private 80GB container, persistent SWMs and OEM input
+first-boot setup. Reclaimed37.77GB generated files/evidence compression.
+4 storage tests plus sanitized GPT and18 Python checks PASS. Windows ARM64 VM
+installation reached98% on the correct NTFS target; physical staging pending.
+Current working EFI remains SPI-005 SHA69e26c15f520b4bd81b9867c2375f75f4cbad77c2a2ccaf4665e62d38d66fa41.
+
+## M1 Pro port decision (2026-11-06)
+
+WHY CLEAN RECONSTRUCTION: create an independent T6000/G13S platform contract
+and retain only demonstrably shared Windows rendering code. The current Windows
+profile generator hard-rejects anything except J313/T8103/V13_5/G13; the
+`J313_AGX_G2_*` contract appears 702 times across 60 AGX files.
+Asahi's T6000 sources describe G13S firmware 12.3 and a distinct UAT/memory
+profile; m1n1 has T6000 initdata/I/O-map support, but this Windows tree has no
+qualified T6000 GPU profile. Sources checked: `tools/generate_j313_agx_g2_contract.py`,
+`tools/generate_agx_hwdata_profile.py`, `drivers/apple-agx/shared/src`,
+`m1n1_windows/proxyclient/m1n1/agx/initdata.py`, Asahi `t600x.rs` and
+`t600x-die0.dtsi`. This is a profile/bring-up port, not a full renderer rewrite.
+
 ## EXP1379 preparation (SRV capacity, 2026-10-18)
 
 - Driver a1a954ef raises the shared UMD/owner SRV limit16->128; compiled root-bound regression RED->GREEN. No caps, KMD, firmware or register-space change. Probe a9dd189f adds fresh-device C16A root t127/table t126/UAV u7/CBV b13; expected5*i+207 for16384 words; ARM64 probe98a330e1.

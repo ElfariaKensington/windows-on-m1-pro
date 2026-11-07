@@ -7,12 +7,20 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import subprocess
 
 DISK = "disk0s4"
 DEVICE = Path("/dev/rdisk0s4")
 UUID = "9FBC60EC-E8FD-4270-8C54-B18BB7DDD4AE"
 SIZE = 1000341504
+
+
+def resolve_device(info):
+    identifier = info.get("DeviceIdentifier", "")
+    if not re.fullmatch(r"disk0s[1-9][0-9]*", identifier):
+        raise RuntimeError("EFI partition has an unexpected device identifier")
+    return Path("/dev/r" + identifier)
 
 
 def sha(path):
@@ -34,6 +42,7 @@ def write_image(path):
 
 
 def main():
+    global DEVICE
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("manifest", type=Path)
     p.add_argument("--restore", action="store_true")
@@ -41,13 +50,15 @@ def main():
     if os.geteuid() != 0:
         p.error("Run with administrator privileges")
     data = json.loads(args.manifest.read_text())
-    info = plistlib.loads(subprocess.check_output(["/usr/sbin/diskutil", "info", "-plist", DISK]))
+    # APFS resizing can renumber BSD slice names. The GPT UUID is stable.
+    info = plistlib.loads(subprocess.check_output(["/usr/sbin/diskutil", "info", "-plist", UUID]))
     model = subprocess.check_output(["/usr/sbin/sysctl", "-n", "hw.model"], text=True).strip()
     if (model != "MacBookPro18,1" or info.get("DiskUUID") != UUID or
             info.get("TotalSize") != SIZE or not info.get("Internal") or info.get("Content") != "EFI"):
         raise RuntimeError("Target identity changed; no write performed")
     if info.get("Mounted") or info.get("MountPoint"):
         raise RuntimeError("Target must be unmounted; no write performed")
+    DEVICE = resolve_device(info)
     backup = Path(data["rollback"]["path"])
     image = Path(data["esp_image"]["path"])
     for path, expected in ((backup, data["rollback"]["sha256"]),

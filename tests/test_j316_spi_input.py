@@ -88,6 +88,7 @@ class J316StagingTests(unittest.TestCase):
         with patch("sys.argv", ["stage.py", str(self.manifest)] + (["--restore"] if restore else [])), \
              patch.object(self.stage.os, "geteuid", return_value=0), \
              patch.object(self.stage.subprocess, "check_output", side_effect=command), \
+             patch.object(self.stage, "resolve_device", return_value=self.device), \
              patch.object(self.stage, "write_image", side_effect=write), \
              contextlib.redirect_stdout(io.StringIO()):
             self.stage.main()
@@ -99,6 +100,15 @@ class J316StagingTests(unittest.TestCase):
         self.assertEqual(receipt["readback_sha256"], hashlib.sha256(self.new).hexdigest())
         self.invoke(restore=True)
         self.assertEqual(self.device.read_bytes(), self.old)
+
+    def test_renumbered_internal_efi_device(self):
+        self.assertEqual(self.stage.resolve_device({"DeviceIdentifier": "disk0s9"}),
+                         Path("/dev/rdisk0s9"))
+
+    def test_whole_or_external_disk_identifier_is_rejected(self):
+        for identifier in ("disk0", "disk1s4", "disk0s0", "../disk0s4", ""):
+            with self.subTest(identifier=identifier), self.assertRaises(RuntimeError):
+                self.stage.resolve_device({"DeviceIdentifier": identifier})
 
     def test_changed_target_refuses_without_writing(self):
         self.info["DiskUUID"] = "another-disk"

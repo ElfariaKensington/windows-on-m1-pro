@@ -13,6 +13,12 @@ for %%D in (C D E F G H I J K L M N O P Q R S T U V W Y Z) do (
         )
         )
     )
+    if exist %%D:\J316-INSTALL.SOURCE (
+        if not exist %%D:\J316InstallLogs md %%D:\J316InstallLogs
+        copy /y X:\J316Input\*.log %%D:\J316InstallLogs\ >nul 2>&1
+        copy /y X:\Windows\INF\setupapi.dev.log %%D:\J316InstallLogs\ >nul 2>&1
+        copy /y X:\Windows\Panther\*.log %%D:\J316InstallLogs\ >nul 2>&1
+    )
 )
 X:\J316Input\J316Tools.exe /delay
 goto again

@@ -23,12 +23,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     for option in ("package", "base-wim", "setup-source", "bcd", "wimboot", "output"):
         parser.add_argument("--" + option, type=Path, required=True)
+    parser.add_argument("--windows-install", action="store_true",
+                        help="Expose the private 80 GB installation disk and its persistent source")
+    parser.add_argument("--boot-wim-output", type=Path,
+                        help="Keep the serviced WinPE image for integration validation")
     args = parser.parse_args()
     args.output = args.output.resolve()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     manifest = args.output.with_suffix(".manifest.json")
     if args.output.exists() or manifest.exists():
         parser.error("Output or manifest already exists")
+    if args.boot_wim_output and args.boot_wim_output.exists():
+        parser.error("WinPE output already exists")
     files = ("J316SpiInput.sys", "J316SpiInput.inf", "J316VhfInput.inf", "J316SpiInput.cat",
              "J316SpiInput.cer", "J316Tools.exe")
     for name in files:
@@ -48,16 +54,25 @@ def main():
             path = scratch / name
             path.write_bytes((sources / name).read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
             commands.append(f'add "{path}" /J316Input/{name}')
+        if args.windows_install:
+            for name in ("launch.cmd", "unattend.xml"):
+                path = scratch / name
+                path.write_bytes((ROOT / "tools/j316s_install" / name).read_bytes()
+                                 .replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+                commands.append(f'add "{path}" /J316Install/{name}')
         subprocess.run(["wimlib-imagex", "update", str(wim), "2"],
                        input="\n".join(commands) + "\n", text=True, check=True)
         subprocess.run(["wimlib-imagex", "verify", str(wim)], check=True)
+        if args.boot_wim_output:
+            shutil.copyfile(wim, args.boot_wim_output)
         media = scratch / "setup.img"
         build_wimboot_media(args.setup_source, args.wimboot, media, boot_wim=wim, bcd=args.bcd)
         subprocess.run([sys.executable, str(ROOT / "tools/pack_j316s_setup.py"),
                         "--mu-build", str(ROOT / "mu/Build/J316sSetup-AARCH64/DEBUG_CLANGPDB"),
                         "--loader-elf", str(ROOT / "m1n1_windows/build/m1n1-raw.elf"),
                         "--media", str(media), "--output", str(args.output),
-                        "--usb", "--apple-input", "--diagnostics-slice"], check=True)
+                        "--usb", "--apple-input",
+                        "--windows-slice" if args.windows_install else "--diagnostics-slice"], check=True)
         data = {
             "experiment": "J316S-FRESH-SPI-001",
             "profile": "J316s Setup: independent SPI keyboard and relative touchpad",
@@ -69,7 +84,8 @@ def main():
             "bcd_sha256": digest(args.bcd), "media_sha256": digest(media),
             "mu_sha256": digest(ROOT / "mu/Build/J316sSetup-AARCH64/DEBUG_CLANGPDB/FV/J316S_SETUP_EFI.fd"),
             "m1n1_sha256": digest(ROOT / "m1n1_windows/build/m1n1-raw.elf"),
-            "payload_flags": "0x0b",
+            "payload_flags": "0x07" if args.windows_install else "0x0b",
+            "storage_profile": "private J316 installation disk" if args.windows_install else "diagnostics",
         }
         manifest.write_text(json.dumps(data, indent=2) + "\n")
     print(f"Built {args.output}\nSHA256 {data['candidate']['sha256']}")
