@@ -27,6 +27,7 @@ def main():
                         help="Expose the private 80 GB installation disk and its persistent source")
     parser.add_argument("--boot-wim-output", type=Path,
                         help="Keep the serviced WinPE image for integration validation")
+    parser.add_argument("--repair-input", action="store_true")
     args = parser.parse_args()
     args.output = args.output.resolve()
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -60,6 +61,12 @@ def main():
                 path.write_bytes((ROOT / "tools/j316s_install" / name).read_bytes()
                                  .replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
                 commands.append(f'add "{path}" /J316Install/{name}')
+            if args.repair_input:
+                for name in ("launch.cmd", "repair-oobe.cmd", "prepare-input.cmd"):
+                    source = ROOT / "tools/j316s_install" / ("repair/" + name if name != "prepare-input.cmd" else name)
+                    path = scratch / ("repair-" + name)
+                    path.write_bytes(source.read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))
+                    commands.append(f'add "{path}" /J316Install/{name}')
         subprocess.run(["wimlib-imagex", "update", str(wim), "2"],
                        input="\n".join(commands) + "\n", text=True, check=True)
         subprocess.run(["wimlib-imagex", "verify", str(wim)], check=True)
