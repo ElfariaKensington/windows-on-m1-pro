@@ -57142,3 +57142,13 @@ J316S-INPUT-REPAIR-001 2026-11-07T15:57:50.173141+00:00 WHY THIS HYPOTHESIS: ins
 J316S-INPUT-REPAIR-001 native recovery: Mac-side PE did not produce repair files, so superseded by one native recovery boot. Existing SYSTEM backup before changes; exact Setup values preserved/restored. No reinstall. Recovery EFI SHA 725b6e5d78575fc96e842fd6bf33f104e0e34733186904369e35167b4ecb2a8c; previous EFI 8eea4d3deb39e1816fc6dbd4a01c945b8351d633240e8b8dec1a67e3b3bc89c0. Installed bootmgr will be renamed within private ESP only, then restored by recovery before restart.
 
 J316S-INPUT-REPAIR-001 stage result: full EFI readback725b6e5d78575fc96e842fd6bf33f104e0e34733186904369e35167b4ecb2a8c. Private bootmgfw backed up and renamed; native PE repair entry enabled. Existing OS not reinstalled. Native recovery execution pending user boot.
+
+
+J316S-INPUT-REPAIR-002 WHY THIS HYPOTHESIS: operator reports repeated PE;
+installed original-cmdline.txt points to repair-oobe.cmd itself, whereas the
+preserved pre-repair SYSTEM snapshot has CmdLine empty, SetupType0 and
+SystemSetupInProgress0. This is a recovery-script recursion defect, not a new
+SPI driver failure. Restore installed bootmgfw first; restore those exact Setup
+values before the clock-aware package retry. Preserve installed OS and original
+SYSTEM backup. No runtime driver, disk sizing or partition layout changes.
+Direct installed Windows boot loader restored from its preserved rename.
