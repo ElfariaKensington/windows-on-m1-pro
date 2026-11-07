@@ -57152,3 +57152,14 @@ SPI driver failure. Restore installed bootmgfw first; restore those exact Setup
 values before the clock-aware package retry. Preserve installed OS and original
 SYSTEM backup. No runtime driver, disk sizing or partition layout changes.
 Direct installed Windows boot loader restored from its preserved rename.
+
+J316S-INPUT-REPAIR-002 applied: disposable Mac-side PE initially followed its
+stale installed-Windows BCD, so those attempts did not service the target.
+Corrected only that disposable media BCD to the WinPE entry. Offline servicing
+then completed. Read installed NTFS: both repair scripts match current source;
+SYSTEM has one-time CmdLine and flags2/1. Preserved installed bootmgfw restored
+and hash-matched. Normal outer EFI restored with full-partition readback
+8eea4d3deb39e1816fc6dbd4a01c945b8351d633240e8b8dec1a67e3b3bc89c0.
+No reinstall, no partition changes, no test suite or native reboot performed.
+Next native Windows boot installs input after correcting certificate clock,
+clears the repair hook before work and restarts into OOBE. Operator result pending.

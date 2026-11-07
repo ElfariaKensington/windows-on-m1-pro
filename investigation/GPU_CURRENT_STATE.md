@@ -1,11 +1,16 @@
 ## J316 OOBE input repair (2026-11-07)
 
-Windows installed and reached Welcome. Installed Panther log proves input
-package was present but rejected for certificate validity against guest clock.
-J316S-INPUT-REPAIR-001 native recovery staged, EFI readback725b6e5d78575fc96e842fd6bf33f104e0e34733186904369e35167b4ecb2a8c.
-Private Windows bootmgfw preserved/renamed to force one native PE repair boot;
-recovery backs up SYSTEM, stages one-time clock-aware input retry and restores
-Windows loader. Existing installation preserved; operator boot pending.
+J316S-INPUT-REPAIR-002: recovery loop corrected in installed Windows.
+Installed repair-oobe.cmd and clock-aware prepare-input.cmd match current source;
+SYSTEM one-time hook points to repair-oobe.cmd. Original pre-repair Setup values
+are empty CmdLine, SetupType0 and SystemSetupInProgress0; script restores them
+before package retry, without executing the recursive saved return command.
+Original installed bootmgfw restored and hash-matched. Outer EFI restored to
+normal installer profile, complete readback SHA256
+8eea4d3deb39e1816fc6dbd4a01c945b8351d633240e8b8dec1a67e3b3bc89c0.
+Existing Windows and partition layout preserved. Next Windows boot performs
+one-time clock-aware input installation, then restarts into normal OOBE.
+Native execution and input remain operator verification; no validation suite.
 
 ## J316 internal installation boundary (2026-11-07)
 
