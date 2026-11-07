@@ -1,16 +1,15 @@
 ## J316 OOBE input repair (2026-11-07)
 
-J316S-INPUT-REPAIR-002: recovery loop corrected in installed Windows.
-Installed repair-oobe.cmd and clock-aware prepare-input.cmd match current source;
-SYSTEM one-time hook points to repair-oobe.cmd. Original pre-repair Setup values
-are empty CmdLine, SetupType0 and SystemSetupInProgress0; script restores them
-before package retry, without executing the recursive saved return command.
-Original installed bootmgfw restored and hash-matched. Outer EFI restored to
-normal installer profile, complete readback SHA256
-8eea4d3deb39e1816fc6dbd4a01c945b8351d633240e8b8dec1a67e3b3bc89c0.
-Existing Windows and partition layout preserved. Next Windows boot performs
-one-time clock-aware input installation, then restarts into normal OOBE.
-Native execution and input remain operator verification; no validation suite.
+J316S-INPUT-REPAIR-003: online driver approval blocks bootstrap before input.
+Serviced existing Windows OFFLINE with DISM Add-Driver /ForceUnsigned for the
+exact existing SPI source and VHF bridge packages. Both operations succeeded;
+installed Windows/INF/oem0.inf and oem1.inf byte-match signed package INFs.
+Success marker and persisted DISM log read back from installed NTFS.
+SYSTEM Setup CmdLine is empty, SetupType0, SystemSetupInProgress0: no startup
+pnputil repair or publisher-approval hook remains. Normal installed boot path
+and outer EFI unchanged from repair002. Existing Windows/partitions preserved.
+Native keyboard/touchpad operation remains user verification. No native reboot
+or test suite performed. Evidence .build/j316s-install/offline-J316-offline-input.log.
 
 ## J316 internal installation boundary (2026-11-07)
 
