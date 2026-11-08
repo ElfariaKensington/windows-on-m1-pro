@@ -16,7 +16,7 @@ internal SSD through Project Mu firmware and a small m1n1-based hypervisor.
 | Interrupt controller | Hypervisor virtual GIC corrected for the 10-core T6000 topology (offline checks passed) |
 | Setup firmware | Project Mu `J316sSetupPkg` and m1n1 `J316S_SETUP=1` build; wimboot reaches the **Windows 11 Setup GUI** |
 | Install | **Not yet verified.** Interactive Setup and installation to the internal SSD have not been completed |
-| USB | Optional xHCI profile on the left front USB-C port; native enumeration still to be checked |
+| USB | **Not operational on hardware**: no USB port works in the tested image. The USB profile is opt-in (`--usb`), so an image built without it has no USB. Even with it, native enumeration is unverified |
 | Built-in keyboard / trackpad | Driver resource contract written; not yet validated on hardware |
 | Internal SSD | Bounded NVMe slice profile built and checked with synthetic GPT data; native ANS run pending |
 | Wi-Fi | Driver and evidence tooling on the `port/j316s-bringup` work; bring-up in progress |
@@ -66,6 +66,8 @@ document if a step does not match what you see.
      --loader-elf m1n1_windows/build/m1n1-raw.elf \
      --media setup-arm64.img --output J316s-Setup-unqualified.bin
    ```
+   Add `--usb` (and build Mu with `BLD_*_J316S_SETUP_USB=TRUE`) if you need USB input or media.
+   Without it the image has no USB, and USB is currently not working on hardware.
 9. **Start Setup** from the packed image through the Asahi boot entry you prepared in step 3.
    The installer's RAM disk holds the Setup WIM; WinPE reads the full installation source from
    USB when you use the USB profile.
