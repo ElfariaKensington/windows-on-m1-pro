@@ -31,7 +31,19 @@ def setup_constants() -> dict[str, int]:
     )}
 
 
+DEVICE_WINDOWS = re.compile(r"^(XHCI\d*|USB\d_DART\d|INPUT_SPI|INPUT_AP_GPIO|INPUT_NUB_GPIO|WIFI_BASE|ECAM|UART)$")
+
+
+def verify_device_overlap(layout: dict[str, int]) -> None:
+    """Guest RAM must not cover any device window the guest is given at the same address."""
+    start, end = layout["RAM_BASE"], layout["RAM_BASE"] + layout["RAM_SIZE"]
+    for name, address in layout.items():
+        if DEVICE_WINDOWS.match(name) and start < address + 0x1000 and address < end:
+            raise ValueError(f"guest RAM {start:#x}-{end:#x} covers device window {name} at {address:#x}")
+
+
 def verify_layout(layout: dict[str, int]) -> None:
+    verify_device_overlap(layout)
     # PrePi rounds the 32-bit framebuffer reservation up to 16 KiB.
     fb_size = (layout["FB_WIDTH"] * layout["FB_HEIGHT"] * 4 + 0x3fff) & ~0x3fff
     regions = sorted([

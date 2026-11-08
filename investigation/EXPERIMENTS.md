@@ -57203,3 +57203,13 @@ J316S-WIFI-002 WHY THIS HYPOTHESIS: exact local BCM4387C2 firmware/OTP board is 
 
 J316s-Wifi-013 install (2026-11-08): `sudo scripts/install-j316s-wifi-esp.sh` OK, full ESP readback sha256 dd20da8190cf8a8f734f19f85c31bc0a769e985babcea53533bfe58108030bd8 matches the pinned image. No reboot performed by the tool; boot result still pending (operator).
 J316S-SSH-001 2026-11-08: staged the operator's GitHub ed25519 identity (fingerprint SHA256:9G9lKTMUwg4wCHQECzfXl4MBblWi8uZJ2jUT00tO1vk), config and github.com host keys on FAT32 J316SOURCE ::/J316Ssh inside the private Windows container (marker-verified, readback cmp OK) with `sudo scripts/bake-ssh-into-windows.sh`. Windows imports it with J316Ssh\install-ssh.cmd, which restricts ACLs and deletes the staged private key. The key is never stored in git. No boot, GPT or Windows-partition change.
+
+J316s-Wifi-013 result (2026-11-08, operator report): Windows stopped at the boot logo and did not start; system also still slow before that. Verdict: REJECTED. Cause found offline, not measured: RAM_BASE 0x850000000 + 12 GiB ends at 0xb50000000, which covers the xHCI1 window 0xb02280000 and USB1 DART 0xb02f00000/0xb02f80000 that the guest is given at the same addresses. The packer layout check compared RAM only with other RAM regions and missed it. Restored Wi-Fi-012 ESP with `sudo scripts/install-j316s-wifi-esp.sh --previous`, full readback sha256 dbc5be260d0f87b6f0bb461ddf76bc9539a4feb61ec42f37f377f1ff1dce2acf (2026-11-08).
+
+## J316s-Wifi-014 — 2026-11-08 (guest RAM 6.75 GiB -> 10 GiB, corrects Wifi-013)
+- WHY THIS HYPOTHESIS: Wifi-013 hung at the Windows logo; offline address comparison shows its RAM range covered xHCI1/USB1 DART IPAs. 10 GiB (0x280000000) ends at 0xad0000000, below 0xb02280000, and matches no other device window. Packer now rejects any RAM range covering a device window (tests/test_pack_j316s_layout.py, RED for 12 GiB, GREEN for 10 GiB). Single variable vs Wifi-012: RAM size. Wi-Fi code unchanged. The slowness cause is still unproven.
+- Sources: m1n1_windows hv_j316s_setup.h RAM_SIZE 0x280000000; Mu J316sSetup.dsc PcdSystemMemorySize 0x280000000 (patched PCD verified in FD).
+- Artifact: dist/j316s/J316s-Wifi-014.bin sha256 435bbbfd4f78f4c1095a7db3e7c5dcc0039b9341c5aad1cb7bbe22bf344b6afc; ESP .build/j316s-wifi/esp-J316s-Wifi-014.img sha256 e9d8de14f7fca3776ec9497a9dd04d1be5ab9680da24a748e75e114c5ecdca99.
+- Recovery: `sudo scripts/install-j316s-wifi-esp.sh --previous` (Wi-Fi-012) or `--rollback` (input-recovery). Apple boot picker still reaches macOS.
+- Expected: Windows boots, reports ~10 GB. Failure: hang at logo or unavailable-RAM message -> restore Wi-Fi-012 and stop raising RAM.
+- Result: pending install and boot (operator).
