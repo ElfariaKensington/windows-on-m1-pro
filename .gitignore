@@ -1,6 +1,7 @@
 # Local development evidence is intentionally retained outside the public index.
 .local/
 drivers/j316-wifi/build/
+drivers/j316-wificx/build/
 
 # Editor and operating-system metadata.
 .idea/

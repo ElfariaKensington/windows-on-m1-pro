@@ -106,6 +106,61 @@ Then the rest of the laptop:
    mode can test firmware and driver changes without rewriting the Air ESP. The GPU driver currently
    runs in this mode.
 
+## Installation (step by step)
+
+Full commands and checks are in [documentation/INSTALL.md](documentation/INSTALL.md). This is the order of work:
+
+1. **Confirm the machine.** Only the 2020 M1 MacBook Air (`j313`, Apple T8103) is supported. Other models will not work.
+2. **Back up everything** and save the output of `diskutil list` and `diskutil apfs list`.
+3. **Provision the Apple-authorized UEFI environment** with the official Asahi installer (`curl https://alx.sh | sh`), choosing *UEFI environment only*. Leave the Windows space unpartitioned. Finish the boot policy in paired 1TR recovery, then check that stock Asahi boots and return to macOS.
+4. **Clone the project with submodules:**
+   ```sh
+   git clone --recurse-submodules https://github.com/ElfariaKensington/windows-on-m1-pro.git
+   cd windows-on-m1-pro
+   git submodule status --recursive
+   ```
+5. **Get the standalone image.** Build `dist/j313/release/boot.bin` following [documentation/BUILD.md](documentation/BUILD.md), or unpack a matching release with its `MANIFEST.json` and verify it.
+6. **Find the Asahi ESP** (the small partition containing `m1n1/boot.bin`) with `diskutil list`. Do not assume its identifier.
+7. **Install stage 2 from macOS**, using the explicit target:
+   ```sh
+   sudo scripts/install-esp.sh inspect --disk diskXsY
+   sudo scripts/install-esp.sh install --disk diskXsY --image dist/j313/release/boot.bin
+   ```
+   Rollback at any time: `sudo scripts/install-esp.sh restore --disk diskXsY`.
+8. **Prepare the Windows 11 ARM64 USB.** Copy the complete ISO contents to an exFAT drive (INSTALL.md, section 4).
+9. **Boot the USB, open Command Prompt with `Shift+F10`**, and follow INSTALL.md sections 5–10: identify disks, create the Windows partitions only in the free extent, apply the edition with DISM, and create BCD.
+10. **Boot the installed system** (INSTALL.md section 11) and complete OOBE with a local account (section 12). Keep a USB keyboard and mouse connected as the recovery path.
+
+For the development workflow (assisted mode with a second Mac, used for GPU work), see [documentation/RUN.md](documentation/RUN.md).
+
+## Progress report
+
+- **Done (validated on hardware):** Windows 11 ARM64 boots from the internal SSD; all eight CPU cores; storage through the NVMe bridge; USB input; built-in keyboard and touchpad; internal display; Apple GPU driver at Direct3D 12 FL 12_1 with GPU desktop composition.
+- **Done in source, host-tested, awaiting hardware:** the canonical guest memory layout, the standalone `boot.bin` format, and the reversible ESP installer.
+- **In progress:** GPU performance parity with macOS (about 68–69 % today), a WDDM admission path for the standalone boot, and Wi-Fi bring-up on the `port/j316s-bringup` branch.
+- **Not started:** external display, sound, keyboard backlight, camera, sleep, and battery management.
+
+Dated history is in [CHANGELOG.md](CHANGELOG.md) and the investigation ledger [investigation/EXPERIMENTS.md](investigation/EXPERIMENTS.md).
+
+## Known issues
+
+- **Whole-system pauses of about 20 seconds** still occur intermittently (SMP timer and vGIC paths). See [documentation/LIMITATIONS.md](documentation/LIMITATIONS.md).
+- **Slow storage:** the NVMe bridge is synchronous; sequential reads are about 300 MB/s.
+- **Memory:** Windows reports 8 GB, but about 5–6 GB is practically available.
+- **GPU driver is development-grade** and runs in assisted mode only; standalone boot exposes no graphics adapter yet.
+- **No Wi-Fi, Bluetooth, audio, camera, sleep, or external display** in the supported build.
+- **Installation is manual** and destructive if pointed at the wrong disk. Read the whole guide first.
+
+### Reporting an issue
+
+Open an issue in the repository and include:
+
+- Mac model and macOS version, and the output of `diskutil list`;
+- the exact `boot.bin` or release name and its SHA-256;
+- whether the run was standalone or assisted, and the step where it failed;
+- the Windows stop code and any dump paths, plus the UART or hypervisor log if available;
+- what you already tried. Do not attach the full internal-SSD partition layout if you do not want to share it.
+
 ## Documentation
 
 - [Standalone installation](documentation/INSTALL.md)

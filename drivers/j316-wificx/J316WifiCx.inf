@@ -1,0 +1,70 @@
+; J316s native Wi-Fi (WiFiCx/NetAdapterCx) for the m1n1-owned BCM4387 bridge, ACPI\APPL0010.
+; Replaces the J316Wifi Ethernet bridge package on the same device. Test-signed development
+; package: catalog generation/signing is external (see README.md).
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Net
+ClassGuid   = {4D36E972-E325-11CE-BFC1-08002BE10318}
+Provider    = %Provider%
+CatalogFile = J316WifiCx.cat
+DriverVer   = 11/08/2026,0.6.0.0
+PnpLockdown = 1
+
+[Manufacturer]
+%Provider% = Models,NTarm64.10.0...22000
+
+[Models.NTarm64.10.0...22000]
+%Device% = Install, ACPI\APPL0010
+
+[Install.NT]
+CopyFiles           = DriverCopy
+Characteristics     = 0x84          ; NCF_HAS_UI | NCF_PHYSICAL
+BusType             = 15            ; PNPBus (ACPI-enumerated)
+AddReg              = NdisConfig
+*IfType             = 71            ; IF_TYPE_IEEE80211
+*MediaType          = 16            ; NdisMediumNative802_11
+*PhysicalMediaType  = 9             ; NdisPhysicalMediumNative802_11
+*IfConnectorPresent = 1
+*ConnectionType     = 1
+*DirectionType      = 0
+*AccessType         = 2
+*HardwareLoopback   = 0
+
+[NdisConfig]
+HKR, Ndi,            Service,    0, "J316WifiCx"
+HKR, Ndi\Interfaces, UpperRange, 0, "ndis5"
+HKR, Ndi\Interfaces, LowerRange, 0, "wlan,ethernet"
+HKR, ,               NumberOfNetworkInterfaces, 0x00010001, 1
+
+[Install.NT.Services]
+AddService = J316WifiCx, 0x2, Service
+
+[Service]
+DisplayName   = %Device%
+ServiceType   = 1
+StartType     = 3
+ErrorControl  = 1
+ServiceBinary = %13%\J316WifiCx.sys
+
+[Install.NT.Wdf]
+KmdfService = J316WifiCx, WdfSection
+
+[WdfSection]
+KmdfLibraryVersion = 1.33
+
+[DriverCopy]
+J316WifiCx.sys
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %Disk%,,,
+
+[SourceDisksFiles]
+J316WifiCx.sys = 1
+
+[Strings]
+Provider = "J316 Bridge Project"
+Device   = "J316 Wi-Fi (BCM4387)"
+Disk     = "J316 Wi-Fi Driver"

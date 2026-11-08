@@ -43,6 +43,15 @@
 C_ASSERT(JW_TX_BASE + JW_RING_COUNT * JW_SLOT_SIZE <= JW_RX_BASE);
 C_ASSERT(JW_RX_BASE + JW_RING_COUNT * JW_SLOT_SIZE <= JW_SIZE);
 C_ASSERT(JW_FRAME_MAX + sizeof(ULONG) <= JW_SLOT_SIZE);
+/* Slot = [u32 length][frame]; copied as whole aligned u64 words. */
+#define JW_SLOT_WORDS(length) ((sizeof(ULONG) + (length) + 7u) / 8u)
+C_ASSERT(JW_SLOT_WORDS(JW_FRAME_MAX) * 8u <= JW_SLOT_SIZE);
+C_ASSERT((JW_TX_BASE % 8u) == 0 && (JW_RX_BASE % 8u) == 0 && (JW_SLOT_SIZE % 8u) == 0);
+/* One poll expiration may hold DISPATCH_LEVEL for at most this long (100 ns units).
+ * The poll period is 5 ms; work left over is taken by the next expiration. A DPC that
+ * outlasted its period kept the CPU at DISPATCH indefinitely under sustained receive
+ * (DPC_WATCHDOG_VIOLATION 0x133/1, J316Wifi poll on the stack). */
+#define JW_POLL_BUDGET_100NS 10000u
 
 typedef struct _JW_FRAME {
     ULONG Length;
@@ -66,6 +75,8 @@ typedef struct _JW_ADAPTER {
     ULONG MulticastCount, PacketFilter, Lookahead;
     NDIS_STATISTICS_INFO Stats;
     UCHAR ReceiveData[JW_FRAME_MAX];
+    ULONG64 Staging[JW_SLOT_SIZE / 8u];
+    LARGE_INTEGER PerfFrequency;
     PMDL ReceiveMdl;
     PNET_BUFFER_LIST ReceiveNbl;
     BOOLEAN JoinPending, JoinInFlight;
@@ -120,6 +131,29 @@ static VOID JwWrite(JW_ADAPTER *a, ULONG offset, ULONG value)
 }
 
 /* Lock held. Counters use modulo-2^32 arithmetic, never signed comparison. */
+/* Uncached device accesses dominate the poll cost: move whole u64 words (8x fewer than
+ * byte accesses) through a cached staging buffer. Slots are 8-byte aligned. */
+static VOID JwSlotRead(JW_ADAPTER *a, ULONG slot, ULONG length)
+{
+    READ_REGISTER_BUFFER_ULONG64((PULONG64)(a->Registers + slot), a->Staging, JW_SLOT_WORDS(length));
+}
+
+static VOID JwSlotWrite(JW_ADAPTER *a, ULONG slot, const UCHAR *data, ULONG length)
+{
+    PUCHAR staging = (PUCHAR)a->Staging;
+    ULONG words = JW_SLOT_WORDS(length);
+    *(ULONG UNALIGNED *)staging = length;
+    RtlCopyMemory(staging + sizeof(ULONG), data, length);
+    RtlZeroMemory(staging + sizeof(ULONG) + length, words * 8u - sizeof(ULONG) - length);
+    WRITE_REGISTER_BUFFER_ULONG64((PULONG64)(a->Registers + slot), a->Staging, words);
+}
+
+static BOOLEAN JwOverBudget(JW_ADAPTER *a, LONGLONG start)
+{
+    LONGLONG elapsed = KeQueryPerformanceCounter(NULL).QuadPart - start;
+    return elapsed * 10000000LL >= (LONGLONG)JW_POLL_BUDGET_100NS * a->PerfFrequency.QuadPart;
+}
+
 static BOOLEAN JwCounters(JW_ADAPTER *a, ULONG *txConsumer, ULONG *rxProducer)
 {
     *txConsumer = JwRead(a, JW_REG_TX_CONS);
@@ -220,6 +254,7 @@ static VOID JwPoll(PVOID system1, PVOID context, PVOID system2, PVOID system3)
     JW_ADAPTER *a = context;
     ULONG txConsumer = 0, rxProducer = 0, status = 0, i;
     BOOLEAN up = FALSE, indicate;
+    LONGLONG start = KeQueryPerformanceCounter(NULL).QuadPart;
     UNREFERENCED_PARAMETER(system1);
     UNREFERENCED_PARAMETER(system2);
     UNREFERENCED_PARAMETER(system3);
@@ -269,11 +304,11 @@ static VOID JwPoll(PVOID system1, PVOID context, PVOID system2, PVOID system3)
     if (!a->Running || a->Removed || a->Shutdown || a->Power != NdisDeviceStateD0 || !up) goto done;
     /* At most 64 publications per expiration; no host progress is required. */
     for (i = 0; i < JW_RING_COUNT && a->QueueCount &&
-         (ULONG)(a->TxProducer - txConsumer) < JW_RING_COUNT; ++i) {
+         (ULONG)(a->TxProducer - txConsumer) < JW_RING_COUNT && !(i && JwOverBudget(a, start)); ++i) {
         JW_FRAME *frame = &a->Queue[a->QueueHead];
         ULONG slot = JW_TX_BASE + (a->TxProducer % JW_RING_COUNT) * JW_SLOT_SIZE;
-        WRITE_REGISTER_BUFFER_UCHAR(a->Registers + slot + sizeof(ULONG), frame->Data, frame->Length);
-        JwWrite(a, slot, frame->Length);
+        /* Length and frame land together; the host reads them only after TX_PROD. */
+        JwSlotWrite(a, slot, frame->Data, frame->Length);
         KeMemoryBarrier();
         JwWrite(a, JW_REG_TX_PROD, ++a->TxProducer);
         JwAccount(a, frame->Data, frame->Length, FALSE);
@@ -284,10 +319,16 @@ static VOID JwPoll(PVOID system1, PVOID context, PVOID system2, PVOID system3)
         ULONG slot, length;
         BOOLEAN accepted = FALSE;
         if (!a->Running || a->Removed || a->Shutdown || a->Power != NdisDeviceStateD0) break;
+        if (i && JwOverBudget(a, start)) break;
         slot = JW_RX_BASE + (a->RxConsumer % JW_RING_COUNT) * JW_SLOT_SIZE;
         length = JwRead(a, slot);
         if (length >= 14 && length <= JW_FRAME_MAX) {
-            READ_REGISTER_BUFFER_UCHAR(a->Registers + slot + sizeof(ULONG), a->ReceiveData, length);
+            JwSlotRead(a, slot, length);
+            /* The length re-read with the frame must match the validated one. */
+            if (*(ULONG UNALIGNED *)a->Staging != length) length = 0; /* counted below */
+            else RtlCopyMemory(a->ReceiveData, (PUCHAR)a->Staging + sizeof(ULONG), length);
+        }
+        if (length >= 14 && length <= JW_FRAME_MAX) {
             accepted = JwAccept(a, a->ReceiveData);
             if (accepted) JwAccount(a, a->ReceiveData, length, TRUE);
         } else ++a->Stats.ifInErrors;
@@ -542,6 +583,7 @@ static NDIS_STATUS JwInitialize(NDIS_HANDLE handle, NDIS_HANDLE driverContext,
     result = NdisMSetMiniportAttributes(handle, (PNDIS_MINIPORT_ADAPTER_ATTRIBUTES)&registration);
     if (result != NDIS_STATUS_SUCCESS) goto fail;
     address.QuadPart = JW_BASE;
+    (VOID)KeQueryPerformanceCounter(&a->PerfFrequency);
     result = NdisMMapIoSpace((PVOID *)&a->Registers, handle, address, JW_SIZE);
     if (result != NDIS_STATUS_SUCCESS) goto fail;
     if (JwRead(a, JW_REG_MAGIC) != JW_MAGIC || JwRead(a, JW_REG_VERSION) != JW_VERSION) {

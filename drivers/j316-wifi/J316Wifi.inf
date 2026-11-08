@@ -1,10 +1,12 @@
-; Unsigned development package; catalog generation/signing is external.
+; Ethernet bridge mode for ACPI\APPL0010: m1n1 joins Wi-Fi, Windows sees an Ethernet adapter.
+; Test-signed with CN=J316 WiFi Development (scripts/package-j316s-wifi-bridge.sh).
 [Version]
 Signature = "$WINDOWS NT$"
 Class = Net
 ClassGuid = {4D36E972-E325-11CE-BFC1-08002BE10318}
 Provider = %Provider%
-DriverVer = 11/07/2026,0.1.0.0
+CatalogFile = J316Wifi.cat
+DriverVer = 11/08/2026,0.2.0.0
 PnpLockdown = 1
 
 [Manufacturer]

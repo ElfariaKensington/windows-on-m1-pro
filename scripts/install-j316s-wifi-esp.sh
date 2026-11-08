@@ -7,11 +7,11 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 DISK_UUID=9FBC60EC-E8FD-4270-8C54-B18BB7DDD4AE
 SIZE=1000341504
-WIFI="$ROOT/.build/j316s-wifi/esp-J316s-Wifi-015.img"
-WIFI_SHA=9cc80fd6fc3e954c192c342673e8333d2221c97ca48cd6367a9a047370e27370
+WIFI="$ROOT/.build/j316s-wifi/esp-J316s-Wifi-017.img"
+WIFI_SHA=d4fe0e9108d612ccbb1751f6427c0838bf7eab714d7281eb2c0f834fa0ef8dfe
 ROLLBACK="$ROOT/.build/j316s-install/esp-input-recovery.img"
 ROLLBACK_SHA=725b6e5d78575fc96e842fd6bf33f104e0e34733186904369e35167b4ecb2a8c
-RECEIPT="$ROOT/dist/j316s/J316s-Wifi-015.manifest.installed.json"
+RECEIPT="$ROOT/dist/j316s/J316s-Wifi-017.manifest.installed.json"
 
 [ "$(id -u)" = 0 ] || { echo "run with sudo" >&2; exit 1; }
 [ "$(sysctl -n hw.model)" = MacBookPro18,1 ] || { echo "unexpected Mac model" >&2; exit 1; }
