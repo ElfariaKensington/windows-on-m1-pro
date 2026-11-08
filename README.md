@@ -1,6 +1,6 @@
-# Windows 11 on the M1 MacBook Air — with its own Apple GPU driver
+# Windows 11 on the M1 Pro MacBook Pro — with its own Apple GPU driver
 
-Native Windows 11 ARM64 on the 2020 M1 MacBook Air (`j313`, Apple T8103): no virtual machine,
+Native Windows 11 ARM64 on the M1 Pro MacBook Pro (`J316s`): no virtual machine,
 Windows runs from the internal SSD with all eight CPU cores, the built-in keyboard and trackpad,
 USB, and an **Apple GPU driver written for Windows from scratch**.
 
@@ -9,7 +9,7 @@ USB, and an **Apple GPU driver written for Windows from scratch**.
 > **Experimental.** This project exposes the internal SSD to experimental firmware and a custom
 > NVMe bridge, and the GPU driver is development-grade. A wrong `diskpart` command can destroy
 > macOS, Recovery, or the Asahi boot environment. Keep a complete backup and read the whole
-> installation guide first. Only the 2020 M1 MacBook Air (`j313`) is supported.
+> installation guide first. Only the M1 Pro MacBook Pro (`J316s`) is supported.
 
 ## Where it stands (November 2026)
 
@@ -110,7 +110,7 @@ Then the rest of the laptop:
 
 Full commands and checks are in [documentation/INSTALL.md](documentation/INSTALL.md). This is the order of work:
 
-1. **Confirm the machine.** Only the 2020 M1 MacBook Air (`j313`, Apple T8103) is supported. Other models will not work.
+1. **Confirm the machine.** Only the M1 Pro MacBook Pro (`J316s`) is supported. Other models will not work.
 2. **Back up everything** and save the output of `diskutil list` and `diskutil apfs list`.
 3. **Provision the Apple-authorized UEFI environment** with the official Asahi installer (`curl https://alx.sh | sh`), choosing *UEFI environment only*. Leave the Windows space unpartitioned. Finish the boot policy in paired 1TR recovery, then check that stock Asahi boots and return to macOS.
 4. **Clone the project with submodules:**
