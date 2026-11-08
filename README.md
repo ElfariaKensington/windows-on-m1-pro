@@ -18,7 +18,7 @@ internal SSD through Project Mu firmware and a small m1n1-based hypervisor.
 | Install | **Not yet verified.** Interactive Setup and installation to the internal SSD have not been completed |
 | USB | **Not operational on hardware**: no USB port works in the tested image. The USB profile is opt-in (`--usb`), so an image built without it has no USB. Even with it, native enumeration is unverified |
 | Built-in keyboard and trackpad | **Working** (verified on hardware) |
-| Ethernet | **Working**: link up and internet access verified |
+| Ethernet | Not verified |
 | Wi-Fi | **Partial**: networks are listed, but connecting fails. The driver is incomplete |
 | Internal SSD | Bounded NVMe slice profile built and checked with synthetic GPT data; native ANS run pending |
 | GPU | Not started on this machine |
