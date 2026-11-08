@@ -1,0 +1,56 @@
+; Unsigned development package; catalog generation/signing is external.
+[Version]
+Signature = "$WINDOWS NT$"
+Class = Net
+ClassGuid = {4D36E972-E325-11CE-BFC1-08002BE10318}
+Provider = %Provider%
+DriverVer = 11/07/2026,0.1.0.0
+PnpLockdown = 1
+
+[Manufacturer]
+%Provider% = Models,NTarm64.10.0...22000
+
+[Models.NTarm64.10.0...22000]
+%Device% = Install, ACPI\APPL0010
+
+[Install.NT]
+CopyFiles = DriverCopy
+Characteristics = 0x4
+BusType = 15
+AddReg = NdisConfig
+
+[NdisConfig]
+HKR, Ndi, Service, 0, "J316Wifi"
+HKR, Ndi\Interfaces, UpperRange, 0, "ndis5"
+HKR, Ndi\Interfaces, LowerRange, 0, "ethernet"
+HKR, , *IfType, 0x00010001, 6
+HKR, , *MediaType, 0x00010001, 0
+HKR, , *PhysicalMediaType, 0x00010001, 0
+
+[Install.NT.Services]
+AddService = J316Wifi, 0x2, Service
+
+[Service]
+DisplayName = %Device%
+ServiceType = 1
+StartType = 3
+ErrorControl = 1
+ServiceBinary = %12%\J316Wifi.sys
+LoadOrderGroup = NDIS
+
+[DriverCopy]
+J316Wifi.sys
+
+[DestinationDirs]
+DriverCopy = 12
+
+[SourceDisksNames]
+1 = %Disk%,,,
+
+[SourceDisksFiles]
+J316Wifi.sys = 1
+
+[Strings]
+Provider = "J316 Bridge Project"
+Device = "J316 WiFi Bridge Ethernet Adapter"
+Disk = "J316 WiFi Bridge Driver"

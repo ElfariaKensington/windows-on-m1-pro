@@ -111,9 +111,14 @@ def acpi_interrupt(irq: int) -> bytes:
 
 
 def verify_dsdt(dsdt: bytes, layout: dict[str, int], usb: bool, apple_input: bool,
-                storage: bool = False) -> None:
+                storage: bool = False, wifi: bool = False) -> None:
     if len(dsdt) < 36 or dsdt[:4] != b"DSDT" or sum(dsdt) % 256:
         raise ValueError("invalid J316s DSDT")
+    if (b"WIF0" in dsdt) != wifi:
+        raise ValueError("DSDT and requested Wi-Fi profile differ")
+    if wifi and (b"APPL0010\0" not in dsdt or
+                 acpi_memory(layout["WIFI_BASE"], layout["WIFI_SIZE"]) not in dsdt):
+        raise ValueError("Wi-Fi DSDT resources differ from the bridge ABI")
     xhci_names = (b"XHC1", b"XHC2", b"XHC3")
     if tuple(name in dsdt for name in xhci_names) != (usb, usb, usb):
         raise ValueError("DSDT and requested USB profile differ")
@@ -145,7 +150,7 @@ def verify_dsdt(dsdt: bytes, layout: dict[str, int], usb: bool, apple_input: boo
 
 
 def verify_firmware(build: Path, layout: dict[str, int], usb: bool = False,
-                    apple_input: bool = False, storage: bool = False) -> Path:
+                    apple_input: bool = False, storage: bool = False, wifi: bool = False) -> Path:
     firmware = build / "FV/J316S_SETUP_EFI.fd"
     if firmware.stat().st_size != layout["FIRMWARE_SIZE"]:
         raise ValueError("firmware size differs from m1n1")
@@ -158,7 +163,7 @@ def verify_firmware(build: Path, layout: dict[str, int], usb: bool = False,
     verify_madt(madt.read_bytes(), layout)
     table_module = "J316sStorageTables" if storage else "J316sDeviceTables"
     table_path = build / "AARCH64/J316sSetupPkg/AcpiTables" / table_module / "OUTPUT"
-    verify_dsdt((table_path / "DSDT.aml").read_bytes(), layout, usb, apple_input, storage)
+    verify_dsdt((table_path / "DSDT.aml").read_bytes(), layout, usb, apple_input, storage, wifi)
     if storage:
         mcfg = (table_path / "MCFG.acpi").read_bytes()
         if (len(mcfg) != 60 or mcfg[:4] != b"MCFG" or
@@ -197,7 +202,7 @@ def file_crc32(path: Path) -> int:
 
 def pack(loader: Path, firmware: Path, media: Path, output: Path, layout: dict[str, int],
          usb: bool = False, apple_input: bool = False, storage: bool = False,
-         diagnostics_slice: bool = False) -> None:
+         diagnostics_slice: bool = False, wifi: bool = False) -> None:
     media_size = media.stat().st_size
     if (media_size % 512 or
             not 1024 * 1024 <= media_size <= layout["RAMDISK_SIZE"] - layout["RAMDISK_HEADER_SIZE"]):
@@ -214,6 +219,9 @@ def pack(loader: Path, firmware: Path, media: Path, output: Path, layout: dict[s
             symbols[parts[0]] = int(parts[2], 16)
     if len(symbols) != 3:
         raise ValueError("loader ELF was not built with J316S_SETUP=1")
+    if wifi and "j316_fw_firmware" not in subprocess.check_output(
+            ["llvm-nm", "--format=posix", str(loader)], text=True):
+        raise ValueError("loader lacks the private J316s Wi-Fi firmware")
     if usb and "hv_j316s_setup_owns_usb" not in subprocess.check_output(
             ["llvm-nm", "--format=posix", str(loader)], text=True):
         raise ValueError("loader ELF lacks the J316s USB profile")
@@ -227,6 +235,8 @@ def pack(loader: Path, firmware: Path, media: Path, output: Path, layout: dict[s
             raise ValueError("raw m1n1 size does not match its payload address")
 
         flags = layout["USB_FLAG"] if usb else 0
+        if wifi:
+            flags |= layout["WIFI_FLAG"]
         if apple_input:
             flags |= layout["INPUT_FLAG"]
         if diagnostics_slice:
@@ -259,11 +269,14 @@ def main() -> None:
                         help="Use the explicitly reserved internal GPT partition as a disk")
     parser.add_argument("--diagnostics-slice", action="store_true",
                         help="Expose a bounded 1 GiB+ diagnostics-only internal GPT slice")
+    parser.add_argument("--wifi", action="store_true", help="Enable the J316 BCM4387 backend")
     args = parser.parse_args()
     if (args.apple_input or args.windows_slice or args.diagnostics_slice) and not args.usb:
         parser.error("Apple input and Windows storage profiles require --usb")
     if args.windows_slice and args.diagnostics_slice:
         parser.error("--windows-slice and --diagnostics-slice are mutually exclusive")
+    if args.wifi and not (args.apple_input and args.windows_slice):
+        parser.error("--wifi requires the internal Windows disk and built-in input profile")
     if args.diagnostics_slice and not args.apple_input:
         parser.error("--diagnostics-slice requires --apple-input")
     if any((args.loader_elf, args.media, args.output)) and not all((args.loader_elf, args.media, args.output)):
@@ -273,12 +286,12 @@ def main() -> None:
         verify_layout(layout)
         storage = args.windows_slice or args.diagnostics_slice
         firmware = verify_firmware(args.mu_build, layout, args.usb, args.apple_input,
-                                   storage)
+                                   storage, args.wifi)
         print(f"Verified Mu firmware, ten-core MADT and Setup DSDT: {firmware}")
         if args.output:
             pack(args.loader_elf, firmware, args.media, args.output, layout,
                  usb=args.usb, apple_input=args.apple_input, storage=args.windows_slice,
-                 diagnostics_slice=args.diagnostics_slice)
+                 diagnostics_slice=args.diagnostics_slice, wifi=args.wifi)
             print(f"Wrote hardware-unqualified Setup candidate: {args.output}")
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         parser.exit(1, f"{error}\n")
