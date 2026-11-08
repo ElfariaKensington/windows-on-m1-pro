@@ -3,4 +3,4 @@
 	url = https://github.com/ElfariaKensington/m1n1_windows.git
 [submodule "mu"]
 	path = mu
-	url = https://github.com/paulsmir/apple_silicon_platforms_mu.git
+	url = https://github.com/ElfariaKensington/apple_silicon_platforms_mu.git
