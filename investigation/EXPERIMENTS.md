@@ -57213,3 +57213,12 @@ J316s-Wifi-013 result (2026-11-08, operator report): Windows stopped at the boot
 - Recovery: `sudo scripts/install-j316s-wifi-esp.sh --previous` (Wi-Fi-012) or `--rollback` (input-recovery). Apple boot picker still reaches macOS.
 - Expected: Windows boots, reports ~10 GB. Failure: hang at logo or unavailable-RAM message -> restore Wi-Fi-012 and stop raising RAM.
 - Result: pending install and boot (operator).
+
+## J316s-Wifi-015 — 2026-11-08 (Wi-Fi bridge window direct-mapped; includes Wifi-014 RAM size)
+- WHY THIS HYPOTHESIS: operator reports slowness that grew after the Wi-Fi bring-up and crashes under load. Code reading: the bridge window (0x410000000) was a stage-2 HOOK mapping, so every guest access trapped to EL2; drivers/j316-wifi/driver.c copies frames with READ/WRITE_REGISTER_BUFFER_UCHAR (one trap per byte, ~1500 per full frame) at DISPATCH_LEVEL under a spinlock, plus ~8 trapped register reads per 5 ms poll, and allmulti=1 delivers all LAN multicast through that path. This is a cost estimate from source, not a measurement (no trace or dump yet).
+- Change (one variable vs Wifi-014): the window is host heap memory (16 KiB aligned) mapped with hv_map_hw instead of hv_map_hook; EL2 keeps its cached view coherent (dc civac before reading guest-written data, immediately after storing). ABI, driver and Wi-Fi firmware logic unchanged; allowlist expects HARDWARE mapping at the window PA.
+- Sources: m1n1_windows hv_j316s_wifi.c/.h, hv_j316s_setup.c (uncommitted at build time, committed after).
+- Artifact: dist/j316s/J316s-Wifi-015.bin sha256 ea2076d336d9de4119960ccf7cfa77761b4b868885b89c78a04072471b4eead5; ESP .build/j316s-wifi/esp-J316s-Wifi-015.img sha256 9cc80fd6fc3e954c192c342673e8333d2221c97ca48cd6367a9a047370e27370.
+- Recovery: `sudo scripts/install-j316s-wifi-esp.sh --previous` (Wi-Fi-012) or `--rollback` (input-recovery, no Wi-Fi).
+- Expected: Windows boots with ~10 GB, noticeably less lag; Wi-Fi adapter still reports link. Failure: boot hang, adapter Faulted (driver reads wrong MAGIC), or no change in lag.
+- Result: pending install and boot (operator).
