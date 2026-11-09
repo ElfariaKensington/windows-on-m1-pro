@@ -1,4 +1,5 @@
 #include <windows.h>
+#include "apple_agx_scanout.h"
 #include <wingdi.h>
 #include <signal.h>
 #pragma warning(push)
@@ -162,8 +163,8 @@ static BOOLEAN AdmissionUmdDescribePrimary(
       CreateResource->pMipInfoList[0].TexelHeight > 8192u ||
       CreateResource->pMipInfoList[0].TexelDepth != 1u ||
       (CreateResource->pPrimaryDesc != NULL &&
-       (CreateResource->pMipInfoList[0].TexelWidth != 2560u ||
-        CreateResource->pMipInfoList[0].TexelHeight != 1600u)) ||
+       (CreateResource->pMipInfoList[0].TexelWidth != APPLE_AGX_SCANOUT_J313_WIDTH ||
+        CreateResource->pMipInfoList[0].TexelHeight != APPLE_AGX_SCANOUT_J313_HEIGHT)) ||
       CreateResource->Usage != D3D10_DDI_USAGE_DEFAULT || CreateResource->MapFlags ||
       (CreateResource->MiscFlags & ~allowedMiscFlags) ||
       ((CreateResource->MiscFlags &
@@ -1087,8 +1088,8 @@ HRESULT AdmissionUmdSubmitPresent(ADMISSION_UMD_DEVICE *Device,
         ((UINT)(flip && flip->Linear==1u)<<7) |
         ((UINT)(flip && flip->Reserved==0u)<<8) |
         ((UINT)(allocation && AdmissionAllocationDescriptionValid(allocation))<<9) |
-        ((UINT)(allocation && allocation->Width==2560u && allocation->Height==1600u)<<10) |
-        ((UINT)(allocation && allocation->Pitch==10240u &&
+        ((UINT)(allocation && allocation->Width==APPLE_AGX_SCANOUT_J313_WIDTH && allocation->Height==APPLE_AGX_SCANOUT_J313_HEIGHT)<<10) |
+        ((UINT)(allocation && allocation->Pitch==APPLE_AGX_SCANOUT_J313_STRIDE &&
                 allocation->BytesPerPixel==4u && allocation->Size==0xfa0000ULL)<<11) |
         ((UINT)(allocation && allocation->CpuVisible==0u)<<12) |
         ((UINT)(allocation &&

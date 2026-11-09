@@ -1642,6 +1642,9 @@ static unsigned long long AdmissionHandoffNow(void *Context) {
 static APPLE_AGX_POWER_U32 AdmissionPowerRead32(
     void *Context, APPLE_AGX_POWER_U32 Offset) {
   ADMISSION_PLATFORM_RUNTIME *runtime = Context;
+  if (runtime == NULL || runtime->Adapter == NULL ||
+      runtime->Adapter->BrokerBase == NULL)
+    return 0xFFFFFFFFu;
   return READ_REGISTER_ULONG(
       (volatile ULONG *)(runtime->Adapter->BrokerBase + Offset));
 }
@@ -1649,6 +1652,9 @@ static APPLE_AGX_POWER_U32 AdmissionPowerRead32(
 static APPLE_AGX_POWER_U64 AdmissionPowerRead64(
     void *Context, APPLE_AGX_POWER_U32 Offset) {
   ADMISSION_PLATFORM_RUNTIME *runtime = Context;
+  if (runtime == NULL || runtime->Adapter == NULL ||
+      runtime->Adapter->BrokerBase == NULL)
+    return ~0ULL;
   return READ_REGISTER_ULONG64(
       (volatile ULONG64 *)(runtime->Adapter->BrokerBase + Offset));
 }
@@ -1656,6 +1662,9 @@ static APPLE_AGX_POWER_U64 AdmissionPowerRead64(
 static void AdmissionPowerWrite32(
     void *Context, APPLE_AGX_POWER_U32 Offset, APPLE_AGX_POWER_U32 Value) {
   ADMISSION_PLATFORM_RUNTIME *runtime = Context;
+  if (runtime == NULL || runtime->Adapter == NULL ||
+      runtime->Adapter->BrokerBase == NULL)
+    return;
   WRITE_REGISTER_ULONG(
       (volatile ULONG *)(runtime->Adapter->BrokerBase + Offset), Value);
 }
@@ -1663,6 +1672,9 @@ static void AdmissionPowerWrite32(
 static void AdmissionPowerWrite64(
     void *Context, APPLE_AGX_POWER_U32 Offset, APPLE_AGX_POWER_U64 Value) {
   ADMISSION_PLATFORM_RUNTIME *runtime = Context;
+  if (runtime == NULL || runtime->Adapter == NULL ||
+      runtime->Adapter->BrokerBase == NULL)
+    return;
   WRITE_REGISTER_ULONG64(
       (volatile ULONG64 *)(runtime->Adapter->BrokerBase + Offset), Value);
 }
@@ -1755,14 +1767,20 @@ static unsigned char AdmissionFirmwarePowerOff(
 
 static unsigned long long AdmissionRetainedRead(void *ctx,unsigned int offset) {
   ADMISSION_PLATFORM_RUNTIME *r=ctx;
+  if (r == NULL || r->Adapter == NULL || r->Adapter->BrokerBase == NULL)
+    return ~0ULL;
   return READ_REGISTER_ULONG64((volatile ULONG64 *)(r->Adapter->BrokerBase+offset));
 }
 static void AdmissionRetainedWrite64(void *ctx,unsigned int offset,unsigned long long value) {
   ADMISSION_PLATFORM_RUNTIME *r=ctx;
+  if (r == NULL || r->Adapter == NULL || r->Adapter->BrokerBase == NULL)
+    return;
   WRITE_REGISTER_ULONG64((volatile ULONG64 *)(r->Adapter->BrokerBase+offset),value);
 }
 static void AdmissionRetainedWrite32(void *ctx,unsigned int offset,unsigned int value) {
   ADMISSION_PLATFORM_RUNTIME *r=ctx;
+  if (r == NULL || r->Adapter == NULL || r->Adapter->BrokerBase == NULL)
+    return;
   WRITE_REGISTER_ULONG((volatile ULONG *)(r->Adapter->BrokerBase+offset),value);
 }
 static BOOLEAN AdmissionRetainedExchange(ADMISSION_PLATFORM_RUNTIME *runtime,
@@ -1869,27 +1887,46 @@ static unsigned char AdmissionRetainedActivate(ADMISSION_PLATFORM_RUNTIME *runti
   AGX_RR_ARENA_DESCRIPTOR command={0};
   AGX_RR_IO io={runtime,AdmissionRetainedRead,AdmissionRetainedWrite64,AdmissionRetainedWrite32};
   int result;
-  if(!runtime->RetainedPrepared || !runtime->Handoff.Locked || !runtime->Initdata.BrokerOnly)
+  if(!runtime->RetainedPrepared || !runtime->Handoff.Locked || !runtime->Initdata.BrokerOnly) {
+    AdmissionRecordActivateStep(runtime->Adapter,0,
+        (runtime->RetainedPrepared?1u:0u)|(runtime->Handoff.Locked?2u:0u)|
+        (runtime->Initdata.BrokerOnly?4u:0u),0);
     return 0;
-  if(!AdmissionRetainedCommand(runtime,AGX_RR_ACTIVATE,&response) ||
-      !(response.Flags&AGX_RR_FLAG_ACTIVE) || !(response.Flags&AGX_RR_FLAG_PREFIX_UNCHANGED) ||
+  }
+  AdmissionRecordActivateStep(runtime->Adapter,1,0,0);
+  if(!AdmissionRetainedCommand(runtime,AGX_RR_ACTIVATE,&response)) return 0;
+  AdmissionRecordActivateStep(runtime->Adapter,2,response.Flags,response.SystemVa);
+  if(!(response.Flags&AGX_RR_FLAG_ACTIVE) || !(response.Flags&AGX_RR_FLAG_PREFIX_UNCHANGED) ||
       response.SystemVa!=0xffffffa080000000ULL || response.SystemBytes!=0x4000) return 0;
+  AdmissionRecordActivateStep(runtime->Adapter,3,0,0);
   if (!AdmissionRetainedQueryArena(runtime,AGX_RR_ARENA_COMMAND,&command) ||
-      command.Va > MAXULONGLONG-command.Bytes ||
-      AppleAgxInitdataMemoryApplyCommandArena(
-          &runtime->Initdata,command.Va,command.Bytes) !=
-          AppleAgxInitdataMemoryResultOk ||
-      !AppleAgxRenderSharedMemoryBindRelocationObjects(
+      command.Va > MAXULONGLONG-command.Bytes) return 0;
+  AdmissionRecordActivateStep(runtime->Adapter,4,command.Va,command.Bytes);
+  {
+    ULONG applied=(ULONG)AppleAgxInitdataMemoryApplyCommandArena(
+        &runtime->Initdata,command.Va,command.Bytes);
+    AdmissionRecordActivateStep(runtime->Adapter,5,applied,
+        runtime->Initdata.Inventory.MappingCount);
+    if(applied!=AppleAgxInitdataMemoryResultOk) return 0;
+  }
+  if(!AppleAgxRenderSharedMemoryBindRelocationObjects(
           &runtime->Initdata.RenderSharedMemory,
           runtime->Adapter->BackendImage.ArenaCpuAddress,
           runtime->Adapter->BackendImage.ArenaBytes,
           runtime->QueueObjects,
-          APPLE_AGX_RENDER_TEMPLATE_RUNTIME_OBJECT_COUNT) ||
-      !AppleAgxApplyRelocations(
+          APPLE_AGX_RENDER_TEMPLATE_RUNTIME_OBJECT_COUNT)) {
+    AdmissionRecordActivateStep(runtime->Adapter,6,0,0);
+    return 0;
+  }
+  if(!AppleAgxApplyRelocations(
           runtime->QueueObjects,
           APPLE_AGX_RENDER_TEMPLATE_RUNTIME_OBJECT_COUNT,
           AppleAgxRenderTemplateRelocations(),
-          AppleAgxRenderTemplateRelocationCount())) return 0;
+          AppleAgxRenderTemplateRelocationCount())) {
+    AdmissionRecordActivateStep(runtime->Adapter,7,0,0);
+    return 0;
+  }
+  AdmissionRecordActivateStep(runtime->Adapter,8,0,0);
   runtime->Rtkit.CrashlogGpuAddress=response.SystemVa&((1ULL<<44)-1);
   runtime->Rtkit.CrashlogCapacityBytes=(ULONG)response.SystemBytes;
   {

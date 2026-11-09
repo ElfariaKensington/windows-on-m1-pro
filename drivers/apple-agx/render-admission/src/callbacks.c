@@ -272,8 +272,8 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiPresent(
   }
   description = &source->Allocation->Description;
   if (!AdmissionAllocationDescriptionValid(description) ||
-      description->Width != 2560u || description->Height != 1600u ||
-      description->Pitch != 10240u || description->BytesPerPixel != 4u ||
+      description->Width != APPLE_AGX_SCANOUT_J313_WIDTH || description->Height != APPLE_AGX_SCANOUT_J313_HEIGHT ||
+      description->Pitch != APPLE_AGX_SCANOUT_J313_STRIDE || description->BytesPerPixel != 4u ||
       description->Size != APPLE_AGX_SCANOUT_J313_SURFACE_SIZE ||
       description->Format != (UINT)D3DDDIFMT_A8R8G8B8) {
     AdmissionRecordPresent(device, Present, 3u,

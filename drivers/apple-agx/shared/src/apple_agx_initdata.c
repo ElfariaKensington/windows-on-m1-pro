@@ -1,7 +1,8 @@
 #include "apple_agx_initdata.h"
 
 #define APPLE_AGX_INITDATA_LEVEL_SIZE 0x20u
-#define APPLE_AGX_INITDATA_PHYSICAL_MASK 0x000000ffffffc000ULL
+#include "apple_agx_pa.h"
+#define APPLE_AGX_INITDATA_PHYSICAL_MASK APPLE_AGX_UAT_OA_MASK
 
 static void AppleAgxInitdataWriteU16(unsigned char *Destination,
                                      unsigned short Value) {

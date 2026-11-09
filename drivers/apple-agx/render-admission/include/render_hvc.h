@@ -2,8 +2,9 @@
 #define APPLE_AGX_RENDER_HVC_H
 
 #include "hv_guest_ipa_pa_abi.h"
+#include "apple_agx_pa.h"
 
-#define ADMISSION_HVC_PHYSICAL_LIMIT (1ULL << 40u)
+#define ADMISSION_HVC_PHYSICAL_LIMIT APPLE_AGX_PA_LIMIT
 
 typedef struct _ADMISSION_HVC_IO {
   void *Context;

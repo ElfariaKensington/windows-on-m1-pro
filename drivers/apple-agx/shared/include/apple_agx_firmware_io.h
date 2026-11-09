@@ -13,6 +13,18 @@
 #define AGX_FW_IO_VA 0xffffffa068000000ULL
 #define AGX_FW_IO_END 0xffffffa070000000ULL
 #define AGX_FW_IO_HWDATA_OFFSET 0x640u
+#if defined(APPLE_AGX_PLATFORM_J316S) || defined(HV_AGX_PLATFORM_J316S)
+#define AGX_FW_IO_T6000 1
+#define AGX_FW_IO_CHIP 0x6000u
+#define AGX_FW_IO_PHYSICAL_LIMIT (1ULL << 42)
+/* MCache: 4 instances, 0xd8000 each, 16 MiB apart; GPU VA is contiguous. */
+#define AGX_FW_IO_STRIDED_SLOT 11u
+#define AGX_FW_IO_STRIDED_RANGE 0xd8000u
+#define AGX_FW_IO_STRIDED_STRIDE 0x1000000ULL
+#else
+#define AGX_FW_IO_CHIP 0x8103u
+#define AGX_FW_IO_PHYSICAL_LIMIT (1ULL << 40)
+#endif
 
 typedef struct _AGX_FW_IO_DESCRIPTOR {
     unsigned long long Phys,Virt;
@@ -29,6 +41,17 @@ typedef struct _AGX_FW_IO_MANIFEST {
 
 static inline unsigned char AgxFwIoProfile(unsigned int slot,
                                           AGX_FW_IO_DESCRIPTOR *out) {
+#ifdef AGX_FW_IO_T6000
+    /* J316s/T6000: Asahi hw/t600x.rs iomaps(4, false) / proxyclient T600x list. */
+    static const struct { unsigned int Slot,Size,Rw; unsigned long long Phys; } entries[] = {
+        {0,0x1c000,1,0x404d00000ULL},{1,0x4000,0,0x20e100000ULL},
+        {2,0x4000,1,0x28e104000ULL},{3,0x20000,1,0x404000000ULL},
+        {7,0x1000,0,0x28e494000ULL},{9,0x8000,1,0x404d80000ULL},
+        {10,0x1000,1,0x204d61000ULL},{11,4u*0xd8000u,1,0x200000000ULL},
+        {14,0x1000,1,0x2643c4000ULL},{18,0x1000,1,0x28e3d0000ULL},
+        {19,0x2000,0,0x28e3c0000ULL}
+    };
+#else
     static const struct { unsigned int Slot,Size,Rw; unsigned long long Phys; } entries[] = {
         {0,0x1c000,1,0x204d00000ULL},{1,0x4000,0,0x20e100000ULL},
         {2,0x4000,1,0x23b104000ULL},{3,0x20000,1,0x204000000ULL},
@@ -36,6 +59,7 @@ static inline unsigned char AgxFwIoProfile(unsigned int slot,
         {9,0x5000,1,0x204d80000ULL},{10,0x1000,1,0x204d61000ULL},
         {11,0xd6400,1,0x200000000ULL},{13,0x1000,1,0x23b738000ULL}
     };
+#endif
     unsigned int i;
     unsigned long long va=AGX_FW_IO_VA;
     if(!out || slot>=AGX_FW_IO_SLOTS) return 0;
@@ -45,6 +69,9 @@ static inline unsigned char AgxFwIoProfile(unsigned int slot,
         if(entries[i].Slot==slot) {
             out->Phys=entries[i].Phys;out->Virt=va+offset;
             out->Size=out->RangeSize=entries[i].Size;out->ReadWrite=entries[i].Rw;
+#ifdef AGX_FW_IO_T6000
+            if(slot==AGX_FW_IO_STRIDED_SLOT) out->RangeSize=AGX_FW_IO_STRIDED_RANGE;
+#endif
             return 1;
         }
         va+=((entries[i].Size+offset+0x3fffULL)&~0x3fffULL)+0x4000ULL;
@@ -57,9 +84,9 @@ static inline unsigned char AgxFwIoManifestValid(const AGX_FW_IO_MANIFEST *m,
     unsigned int i;
     if(!m || bytes!=AGX_FW_IO_BYTES || sizeof(*m)!=AGX_FW_IO_BYTES ||
        m->Magic!=AGX_FW_IO_MAGIC || m->Version!=AGX_FW_IO_VERSION ||
-       m->Bytes!=AGX_FW_IO_BYTES || m->Chip!=0x8103 || m->Ready!=1 ||
+       m->Bytes!=AGX_FW_IO_BYTES || m->Chip!=AGX_FW_IO_CHIP || m->Ready!=1 ||
        m->Count!=AGX_FW_IO_SLOTS || !epoch || m->Epoch!=epoch ||
-       !root || root>=1ULL<<40 || (root&0x3fffULL) || m->Root!=root ||
+       !root || root>=AGX_FW_IO_PHYSICAL_LIMIT || (root&0x3fffULL) || m->Root!=root ||
        m->Reserved[0] || m->Reserved[1] || m->Reserved[2]) return 0;
     for(i=0;i<AGX_FW_IO_SLOTS;i++) {
         AGX_FW_IO_DESCRIPTOR e;

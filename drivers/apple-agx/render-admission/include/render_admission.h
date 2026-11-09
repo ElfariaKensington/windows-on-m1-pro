@@ -1162,6 +1162,8 @@ void AdmissionRecordBackendQualification(_In_ ADMISSION_CONTEXT *Context,
 void AdmissionRecordDeviceControl(_In_ ADMISSION_CONTEXT *Context,
     _In_ ULONG Idle,_In_ ULONG Result,_In_ ULONG ReadPointer,
     _In_ ULONG WritePointer,_In_ ULONG Expected);
+void AdmissionRecordActivateStep(_In_ ADMISSION_CONTEXT *Context,
+    _In_ ULONG Step,_In_ ULONGLONG A,_In_ ULONGLONG B);
 void AdmissionRecordFirmwareIo(_In_ ADMISSION_CONTEXT *Context,
     _In_ ULONG Result,_In_ const AGX_FW_IO_MANIFEST *Manifest);
 void AdmissionRecordEndpoint(_In_ ADMISSION_CONTEXT *Context,

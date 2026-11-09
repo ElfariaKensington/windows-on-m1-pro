@@ -2,7 +2,7 @@
 #define APPLE_AGX_MEMORY_H
 
 #define APPLE_AGX_MEMORY_PAGE_SIZE 0x4000ULL
-#define APPLE_AGX_MEMORY_DEVICE_ADDRESS_LIMIT (1ULL << 40)
+#define APPLE_AGX_MEMORY_DEVICE_ADDRESS_LIMIT APPLE_AGX_PA_LIMIT
 
 typedef enum _APPLE_AGX_MEMORY_RESULT {
   AppleAgxMemoryResultOk = 0,
@@ -92,3 +92,4 @@ APPLE_AGX_MEMORY_RESULT AppleAgxMemoryRelease(const APPLE_AGX_MEMORY_IO *Io,
                                               APPLE_AGX_MEMORY_OBJECT *Object);
 
 #endif /* APPLE_AGX_MEMORY_H */
+#include "apple_agx_pa.h"

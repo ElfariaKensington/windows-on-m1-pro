@@ -1,0 +1,113 @@
+{
+  "contract_version": 2,
+  "platform": "J316s",
+  "soc": "T6000",
+  "firmware": {
+    "generation": "G13",
+    "version": "V13_5",
+    "iboot": "iBoot-8422.141.2",
+    "stub_macos": "13.5 (22G74)"
+  },
+  "interrupts": [
+    1044,
+    1045,
+    1046,
+    1047,
+    1063,
+    1060,
+    1059,
+    1062,
+    1061
+  ],
+  "regions": {
+    "sgx_mmio": {
+      "base": 17246978048,
+      "size": 67108864
+    },
+    "asc_mmio": {
+      "base": 17284726784,
+      "size": 442368
+    },
+    "gpu": {
+      "base": 1116691202048,
+      "size": 16384
+    },
+    "handoff": {
+      "base": 1116690907136,
+      "size": 16384
+    },
+    "shared": {
+      "base": 1116690939904,
+      "size": 262144
+    },
+    "rtkit_private": {
+      "base": 18446743523953737728,
+      "size": 137438953472
+    }
+  },
+  "stage2_passthrough": [
+    {
+      "name": "sgx0",
+      "base": 17246978048,
+      "size": 1048576
+    },
+    {
+      "name": "sgx1",
+      "base": 17260609536,
+      "size": 131072
+    },
+    {
+      "name": "asc0",
+      "base": 17284726784,
+      "size": 442368
+    }
+  ],
+  "firmware_segments": [
+    {
+      "name": "__TEXT",
+      "phys": 1099524177920,
+      "iova": 18446743523953737728,
+      "size": 344064
+    },
+    {
+      "name": "__DATA",
+      "phys": 1099540578304,
+      "iova": 18446743523954081792,
+      "size": 491520
+    }
+  ],
+  "power": {
+    "domain": "GFX",
+    "pmgr_id": 296,
+    "ps_reg": 10978067392,
+    "gates": {
+      "gfx-asc": [
+        478
+      ],
+      "sgx": [
+        476,
+        477
+      ]
+    }
+  },
+  "gpu_config": {
+    "num_cores": 16,
+    "num_clusters": 2,
+    "core_masks": [
+      255,
+      255
+    ],
+    "num_frags": 16,
+    "num_gps": 8,
+    "variant": "S"
+  },
+  "uat": {
+    "page_size": 16384,
+    "num_contexts": 64,
+    "address_bits": 42
+  },
+  "source": {
+    "adt_sha256": "1c1ae7034c9174b5f974663b11829c63d065c8505b875b0e131c81e926868078",
+    "evidence": ".build/j316s-gpu/evidence/J316s-GPU-001-20261109T124308Z"
+  }
+}

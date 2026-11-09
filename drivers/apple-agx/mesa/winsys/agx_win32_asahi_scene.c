@@ -57,14 +57,31 @@ struct pipe_screen *AgxWin32AsahiScreenCreateForWindows(AGX_WIN32_ASAHI_BACKEND 
    * topology. Pinned Asahi hw/t8103.rs (77cb8f24c238...) defines G13G, one die,
    * max_num_clusters=1. This adapter implements that one-cluster model only.
    * Core masks, revision and timestamp frequency are not invented. */
+#ifdef APPLE_AGX_PLATFORM_J316S
+  /* J316s/T6000: Asahi hw/t600x.rs HWCONFIG_T6000 (G13S, one die, two
+   * clusters); KMD reports the packed 2x8 CORE_MASK_0 value. */
+  params.gpu_variant='S';
+  params.num_clusters_total=2;
+  params.num_dies=1;
+#else
   params.num_clusters_total=1;
   params.num_dies=1;
+#endif
   /* EXP1317: the cores the SGX reports (KMD, Asahi regs.rs derivation).
    * Mesa's scratch block list and max_compute_units follow them; without
    * them a fragment shader using scratch walked an empty list
    * (dwmcore.dll_003d8800 removed the device on both shader paths). */
   params.num_cores_per_cluster=windows->Info.CoresPerCluster;
+#ifdef APPLE_AGX_PLATFORM_J316S
+  {
+    unsigned cores=windows->Info.CoresPerCluster ? windows->Info.CoresPerCluster : 8u;
+    unsigned m=(1u<<cores)-1u;
+    params.core_masks[0]=windows->Info.CoreMask & m;
+    params.core_masks[1]=(windows->Info.CoreMask >> cores) & m;
+  }
+#else
   params.core_masks[0]=windows->Info.CoreMask;
+#endif
   params.features=0; /* Optional soft faults are deliberately not enabled. */
   if(windows->Info.PageBytes!=AIL_PAGESIZE) return NULL;
   struct pipe_screen *screen=AgxWin32AsahiScreenCreate(backend,windows,owners,owner,batches,&params);

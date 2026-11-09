@@ -1,4 +1,6 @@
 #include "render_dynamic_output.h"
+#include "apple_agx_scanout.h"
+#include "apple_agx_pa.h"
 
 #define OUTPUT_NULL ((void *)0)
 
@@ -34,7 +36,7 @@ int AdmissionDynamicOutputSnapshotCapture(
   APPLE_AGX_U32 index;
   if (Snapshot == OUTPUT_NULL || Source == OUTPUT_NULL || Fence == 0u ||
       Generation == 0u || SourceGpuVa == 0ULL || SourcePhysical == 0ULL ||
-      SourceGpuVa >= (1ULL << 40u) || SourcePhysical >= (1ULL << 40u) ||
+      SourceGpuVa >= (1ULL << 40u) || SourcePhysical >= APPLE_AGX_PA_LIMIT ||
       (SourceGpuVa & 0x3fffULL) != 0ULL ||
       (SourcePhysical & 0x3fffULL) != 0ULL ||
       DataBytes != ADMISSION_DYNAMIC_OUTPUT_SNAPSHOT_CAPACITY ||
@@ -102,7 +104,7 @@ int AdmissionDynamicOutputDescribeExpectation(
     output_zero(Expectation, (APPLE_AGX_U32)sizeof(*Expectation));
     return 0;
   }
-  if (Width == 2560u && Height == 1600u && Pitch == 10240u &&
+  if (Width == APPLE_AGX_SCANOUT_J313_WIDTH && Height == APPLE_AGX_SCANOUT_J313_HEIGHT && Pitch == APPLE_AGX_SCANOUT_J313_STRIDE &&
       Layout == AdmissionDynamicOutputLayoutLinear) {
     candidate.InteriorX = 1280u;
     candidate.InteriorY = 800u;

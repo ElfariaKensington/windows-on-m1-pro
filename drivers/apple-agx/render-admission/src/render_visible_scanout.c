@@ -1,4 +1,5 @@
 #include "render_visible_scanout.h"
+#include "apple_agx_pa.h"
 #include "apple_agx_exp208_framebuffer.h"
 
 #define VISIBLE_NULL ((void *)0)
@@ -89,7 +90,7 @@ int AdmissionVisibleScanoutReceiptValid(
       Receipt->GuestIpaAddress == 0ULL ||
       Receipt->HostPhysicalAddress == 0ULL ||
       Receipt->PoolPhysicalAddress != Receipt->HostPhysicalAddress ||
-      Receipt->PoolPhysicalAddress >= (1ULL << 40u) ||
+      Receipt->PoolPhysicalAddress >= APPLE_AGX_PA_LIMIT ||
       (Receipt->SurfaceOffset & (APPLE_AGX_SCANOUT_ALIGNMENT - 1ULL)) != 0ULL ||
       Receipt->SurfaceOffset > APPLE_AGX_SCANOUT_J313_POOL_MAX_SIZE -
                                    APPLE_AGX_SCANOUT_J313_SURFACE_SIZE ||

@@ -2,7 +2,14 @@
 #define APPLE_AGX_HWDATA_PROFILE_H
 #include "apple_agx_firmware_io.h"
 #include "apple_agx_hwdata_profile_abi.h"
+#ifdef APPLE_AGX_PLATFORM_J316S
+#include "apple_agx_hwdata_profile_j316s.generated.h"
+#define AGX_HWDATA_PHYSICAL_LIMIT (1ULL << 42)
+#else
 #include "apple_agx_hwdata_profile.generated.h"
+#define AGX_HWDATA_CHIP_ID 0x8103u
+#define AGX_HWDATA_PHYSICAL_LIMIT (1ULL << 40)
+#endif
 
 typedef const unsigned char *(*AGX_HWDATA_READ_PROPERTY)(void *,const char *,unsigned int *);
 static inline unsigned char AgxHwdataInputsMatch(AGX_HWDATA_READ_PROPERTY read,void *ctx) {
@@ -22,8 +29,8 @@ static inline unsigned char AgxHwdataReceiptValid(const AGX_HWDATA_RECEIPT *r,
     unsigned long long epoch,unsigned long long root) {
     unsigned int i;
     if(!r || sizeof(*r)!=64 || r->Magic!=AGX_HWDATA_RECEIPT_MAGIC ||
-       r->Version!=1 || r->Bytes!=64 || r->Chip!=0x8103 || !epoch ||
-       r->Epoch!=epoch || !root || root>=1ULL<<40 || (root&0x3fffULL) || r->Root!=root)
+       r->Version!=1 || r->Bytes!=64 || r->Chip!=AGX_HWDATA_CHIP_ID || !epoch ||
+       r->Epoch!=epoch || !root || root>=AGX_HWDATA_PHYSICAL_LIMIT || (root&0x3fffULL) || r->Root!=root)
         return 0;
     for(i=0;i<32;i++)if(r->ProfileId[i]!=AgxHwdataProfileId[i])return 0;
     return 1;

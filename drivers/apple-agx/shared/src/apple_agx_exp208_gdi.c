@@ -1,4 +1,5 @@
 #include "apple_agx_exp208_gdi.h"
+#include "apple_agx_pa.h"
 
 #define EXP208_GDI_NULL ((void *)0)
 #define EXP208_GDI_COMMAND_3D_OBJECT 18u
@@ -290,7 +291,7 @@ static APPLE_AGX_BOOL Exp208GdiBindColorFill(
           APPLE_AGX_EXP208_GDI_STORE_DESCRIPTOR_ADDRESS_MASK ||
       DestinationPhysical == 0ULL ||
       (DestinationPhysical & 0x3fffULL) != 0ULL ||
-      DestinationPhysical >= (1ULL << 40u) ||
+      DestinationPhysical >= APPLE_AGX_PA_LIMIT ||
       DestinationCapacity < ExpectedOutputBytes ||
       !Exp208GdiCommandValid(
           SubmissionBytes, SubmissionByteCount, CommandDestinationGpuVa,

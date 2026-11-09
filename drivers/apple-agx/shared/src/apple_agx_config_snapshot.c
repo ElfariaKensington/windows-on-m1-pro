@@ -41,10 +41,17 @@ APPLE_AGX_CONFIG_RESULT AppleAgxConfigSnapshotDecodeJ313(
   candidate.MaxPstate = read_u32(wire + 0x1cu);
   candidate.PowerSamplePeriodMs = read_u32(wire + 0x20u);
   candidate.GpuRegionBase = read_u64(wire + 0x28u);
+#ifdef APPLE_AGX_PLATFORM_J316S
+  if (candidate.PerfStateCount != 7u || candidate.PerfStateTableCount != 2u ||
+      candidate.BasePstate != 1u || candidate.MaxPstate != 6u ||
+      candidate.PowerSamplePeriodMs != 8u ||
+      candidate.GpuRegionBase != 0x103fffb8000ULL)
+#else
   if (candidate.PerfStateCount != 7u || candidate.PerfStateTableCount != 1u ||
       candidate.BasePstate != 1u || candidate.MaxPstate != 6u ||
       candidate.PowerSamplePeriodMs != 8u ||
       candidate.GpuRegionBase != 0x9fffb8000ULL)
+#endif
     return AppleAgxConfigResultGeometry;
 
   for (index = 0u; index < APPLE_AGX_CONFIG_MAX_PERF_STATES; ++index) {

@@ -1,0 +1,46 @@
++-o gfx-asc@6400000  <class AppleARMIODevice, id 0x100000387, registered, matched, active, busy 0 (646 ms), retain 9>
+  | {
+  |   "IOInterruptSpecifiers" = (<24040000>,<23040000>,<26040000>,<25040000>)
+  |   "iop-version" = <01000000>
+  |   "clock-gates" = <de010000>
+  |   "AAPL,phandle" = <2e010000>
+  |   "IODeviceMemory" = (({"address"=17284726784,"length"=442368}),({"address"=17280860160,"length"=20496}))
+  |   "IOReportLegendPublic" = Yes
+  |   "segment-names" = <"__TEXT;__DATA;__DATA_SHARED_RO">
+  |   "iommu-parent" = <30010000>
+  |   "IOInterruptControllers" = ("IOInterruptController00000082","IOInterruptController00000082","IOInterruptController00000082","IOInterruptController00000082")
+  |   "name" = <"gfx-asc">
+  |   "interrupt-parent" = <82000000>
+  |   "compatible" = <"iop,ascwrap-v4">
+  |   "interrupts" = <24040000230400002604000025040000>
+  |   "clock-ids" = <3b010000>
+  |   "cpu-run-timestamp" = 1440198746364
+  |   "role" = <"GFX">
+  |   "IOReportLegend" = ({"IOReportGroupName"="Interrupt Statistics (by index)","IOReportChannels"=((5291294645182136320,4295098369,"               First Level Interrupt Handler Count"),(5291294645182136321,4295098369,"              Second Level Interrupt Handler Count"),(5291294645182136322,4295098369,"        First Level Interrupt Handler Time (MATUs)"),(5291294645182136323,4295098369,"   Second Level Interrupt Handler CPU Time (MATUs)"),(5291294645182136324,4295098369,"Second Level Interrupt Handler System Time (MATUs)")),"IOReportChannelInfo"={"IOReportChannelUnit"=0},"IOReportSubGroupName"="gfx-asc 2"},{"IOReportGroupName"="Interrupt Statistics (by index)","IOReportChannels"=((5291294645182070784,4295098369,"               First Level Interrupt Handler Count"),(5291294645182070785,4295098369,"              Second Level Interrupt Handler Count"),(5291294645182070786,4295098369,"        First Level Interrupt Handler Time (MATUs)"),(5291294645182070787,4295098369,"   Second Level Interrupt Handler CPU Time (MATUs)"),(5291294645182070788,4295098369,"Second Level Interrupt Handler System Time (MATUs)")),"IOReportChannelInfo"={"IOReportChannelUnit"=0},"IOReportSubGroupName"="gfx-asc 1"})
+  |   "device_type" = <"gfx-asc">
+  |   "power-gates" = <de010000>
+  |   "reg" = <000040060200000000c006000000000000000506020000001050000000000000>
+  |   "segment-ranges" = <0040c900000100000000000080ffffff0040c9000001000000400500010000000080d901000100000040050080ffffff0080d9010001000000c00900000000000040e3010001000000000f0080ffffff0040e301000100000080000000000000>
+  | }
+  | 
+  +-o iop-gfx-nub0  <class AppleA7IOPNub, id 0x10000042c, registered, matched, active, busy 0 (519 ms), retain 7>
+      {
+        "uuid" = <"9E22DC32-1EA8-3076-991B-13E7E18510F0">
+        "shutdown-sleep" = <>
+        "segment-names" = <"__TEXT;__DATA;__DATA_SHARED_RO">
+        "compatible" = <"iop-nub,rtbuddy-v2">
+        "coredump-enable" = <40000000>
+        "AAPL,phandle" = <2f010000>
+        "pre-loaded" = <01000000>
+        "firmware-name" = <"GFX">
+        "coredump-copy-buffer" = <00800000>
+        "no-firmware-service" = <>
+        "power-managed" = <"true">
+        "KDebugCoreID" = 15
+        "segment-ranges" = <0040c900000100000000000080ffffff0040c9000001000000400500010000000080d901000100000040050080ffffff0080d9010001000000c00900000000000040e3010001000000000f0080ffffff0040e301000100000080000000000000>
+        "coredump-rel-privacy-approved" = <>
+        "name" = <"iop-gfx-nub0">
+        "data-isolation" = <00000000>
+      }
+      
+

@@ -30,6 +30,16 @@ static inline int AppleAgxG13CoreTopology(
   if (CoresPerCluster == 0 || CoreMask == 0) return 0;
   *CoresPerCluster = 0u;
   *CoreMask = 0u;
+#ifdef APPLE_AGX_PLATFORM_J316S
+  /* T6000 (G13S): two clusters of up to 8 cores, masks packed in CORE_MASK_0
+   * (Asahi regs.rs get_gpu_id). *CoreMask keeps the packed 2x8-bit layout. */
+  if (((IdVersion >> 24) & 0xffu) != 4u || clusters != 2u ||
+      cores == 0u || cores > 16u)
+    return 0;
+  limit = (cores * clusters) >= 32u ? 0xffffffffu : ((1u << (cores * clusters)) - 1u);
+  if ((CoreMask0 & limit) == 0u || (CoreMask0 & ~limit) != 0u || CoreMask1 != 0u)
+    return 0;
+#else
   if (((IdVersion >> 24) & 0xffu) != 4u || clusters != 1u ||
       cores == 0u || cores > 32u)
     return 0;
@@ -37,6 +47,7 @@ static inline int AppleAgxG13CoreTopology(
   if ((CoreMask0 & limit) == 0u || (CoreMask0 & ~limit) != 0u ||
       CoreMask1 != 0u)
     return 0;
+#endif
   *CoresPerCluster = cores;
   *CoreMask = CoreMask0;
   return 1;

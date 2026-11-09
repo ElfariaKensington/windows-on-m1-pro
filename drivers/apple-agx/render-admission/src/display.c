@@ -8,15 +8,15 @@ C_ASSERT(sizeof(DXGKARG_UPDATEMONITORLINKINFO) == 16);
 static VOID AdmissionFillPanelSignalInfo(D3DKMDT_VIDEO_SIGNAL_INFO *Signal) {
   RtlZeroMemory(Signal, sizeof(*Signal));
   Signal->VideoStandard = D3DKMDT_VSS_OTHER;
-  Signal->ActiveSize.cx = 2560u;
-  Signal->ActiveSize.cy = 1600u;
-  Signal->TotalSize.cx = 2642u;
-  Signal->TotalSize.cy = 1682u;
-  Signal->PixelRate = 266630000ULL;
-  Signal->HSyncFreq.Numerator = 266630000u;
-  Signal->HSyncFreq.Denominator = 2642u;
-  Signal->VSyncFreq.Numerator = 266630000u;
-  Signal->VSyncFreq.Denominator = 2642u * 1682u;
+  Signal->ActiveSize.cx = APPLE_AGX_SCANOUT_J313_WIDTH;
+  Signal->ActiveSize.cy = APPLE_AGX_SCANOUT_J313_HEIGHT;
+  Signal->TotalSize.cx = APPLE_AGX_PANEL_TOTAL_WIDTH;
+  Signal->TotalSize.cy = APPLE_AGX_PANEL_TOTAL_HEIGHT;
+  Signal->PixelRate = APPLE_AGX_PANEL_PIXEL_RATE;
+  Signal->HSyncFreq.Numerator = APPLE_AGX_PANEL_PIXEL_RATE;
+  Signal->HSyncFreq.Denominator = APPLE_AGX_PANEL_TOTAL_WIDTH;
+  Signal->VSyncFreq.Numerator = APPLE_AGX_PANEL_PIXEL_RATE;
+  Signal->VSyncFreq.Denominator = APPLE_AGX_PANEL_TOTAL_WIDTH * APPLE_AGX_PANEL_TOTAL_HEIGHT;
   Signal->ScanLineOrdering = D3DDDI_VSSLO_PROGRESSIVE;
 }
 
@@ -297,11 +297,11 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiEnumVidPnCofuncModality(
       goto Exit;
     RtlZeroMemory(sourceMode, sizeof(*sourceMode));
     sourceMode->Type = D3DKMDT_RMT_GRAPHICS;
-    sourceMode->Format.Graphics.PrimSurfSize.cx = 2560;
-    sourceMode->Format.Graphics.PrimSurfSize.cy = 1600;
+    sourceMode->Format.Graphics.PrimSurfSize.cx = APPLE_AGX_SCANOUT_J313_WIDTH;
+    sourceMode->Format.Graphics.PrimSurfSize.cy = APPLE_AGX_SCANOUT_J313_HEIGHT;
     sourceMode->Format.Graphics.VisibleRegionSize =
         sourceMode->Format.Graphics.PrimSurfSize;
-    sourceMode->Format.Graphics.Stride = 10240;
+    sourceMode->Format.Graphics.Stride = APPLE_AGX_SCANOUT_J313_STRIDE;
     sourceMode->Format.Graphics.PixelFormat = D3DDDIFMT_A8R8G8B8;
     sourceMode->Format.Graphics.ColorBasis = D3DKMDT_CB_SCRGB;
     sourceMode->Format.Graphics.PixelValueAccessMode = D3DKMDT_PVAM_DIRECT;
@@ -554,9 +554,9 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiCommitVidPn(
     goto Exit;
   if (pinnedSourceMode == NULL ||
       pinnedSourceMode->Type != D3DKMDT_RMT_GRAPHICS ||
-      pinnedSourceMode->Format.Graphics.PrimSurfSize.cx != 2560 ||
-      pinnedSourceMode->Format.Graphics.PrimSurfSize.cy != 1600 ||
-      pinnedSourceMode->Format.Graphics.Stride != 10240 ||
+      pinnedSourceMode->Format.Graphics.PrimSurfSize.cx != APPLE_AGX_SCANOUT_J313_WIDTH ||
+      pinnedSourceMode->Format.Graphics.PrimSurfSize.cy != APPLE_AGX_SCANOUT_J313_HEIGHT ||
+      pinnedSourceMode->Format.Graphics.Stride != APPLE_AGX_SCANOUT_J313_STRIDE ||
       pinnedSourceMode->Format.Graphics.PixelFormat !=
           D3DDDIFMT_A8R8G8B8 ||
       pinnedSourceMode->Format.Graphics.PixelValueAccessMode !=
@@ -578,9 +578,9 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiCommitVidPn(
       pinnedSourceMode->Format.Graphics.PixelFormat);
   if (!NT_SUCCESS(status))
     goto Exit;
-  context->CommittedWidth = 2560;
-  context->CommittedHeight = 1600;
-  context->CommittedStride = 10240;
+  context->CommittedWidth = APPLE_AGX_SCANOUT_J313_WIDTH;
+  context->CommittedHeight = APPLE_AGX_SCANOUT_J313_HEIGHT;
+  context->CommittedStride = APPLE_AGX_SCANOUT_J313_STRIDE;
   context->CommittedFormat = D3DDDIFMT_A8R8G8B8;
   context->DisplayActive = TRUE;
   status = STATUS_SUCCESS;
@@ -793,8 +793,8 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiSetVidPnSourceAddress(
   if (SetVidPnSourceAddress != NULL && context->Started &&
       SetVidPnSourceAddress->hAllocation != NULL &&
       SetVidPnSourceAddress->VidPnSourceId == 0 &&
-      context->CommittedWidth == 2560 && context->CommittedHeight == 1600 &&
-      context->CommittedStride == 10240 &&
+      context->CommittedWidth == APPLE_AGX_SCANOUT_J313_WIDTH && context->CommittedHeight == APPLE_AGX_SCANOUT_J313_HEIGHT &&
+      context->CommittedStride == APPLE_AGX_SCANOUT_J313_STRIDE &&
       context->CommittedFormat == D3DDDIFMT_A8R8G8B8) {
     if (receipt != NULL)
       receipt->QueueCalled = 1u;

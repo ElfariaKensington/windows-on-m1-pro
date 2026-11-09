@@ -12,7 +12,7 @@
  * at the end. Consumers accept a 64 KiB-aligned size in [MIN, MAX]. */
 #define APPLE_AGX_LOCAL_RESERVE_VERSION 3U
 #define APPLE_AGX_LOCAL_RESERVE_ALIGNMENT 0x10000ULL
-#define APPLE_AGX_LOCAL_RESERVE_PHYSICAL_LIMIT (1ULL << 40)
+#define APPLE_AGX_LOCAL_RESERVE_PHYSICAL_LIMIT APPLE_AGX_PA_LIMIT
 #define APPLE_AGX_LOCAL_RESERVE_PRIVATE_BYTES 0x04000000ULL
 #define APPLE_AGX_LOCAL_RESERVE_BACKEND_BYTES 0x00800000ULL
 /* Segment 2 holds scanout primaries (16 MiB each at 2560x1600) and the G3
@@ -77,3 +77,4 @@ static inline unsigned char AppleAgxLocalReserveMatchesResource(
 }
 
 #endif
+#include "apple_agx_pa.h"

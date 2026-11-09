@@ -1,4 +1,5 @@
 #include "render_memory.h"
+#include "apple_agx_pa.h"
 
 #define ADMISSION_MEMORY_NULL ((void *)0)
 #define ADMISSION_MEMORY_U64_MAX (~(APPLE_AGX_U64)0ULL)
@@ -153,7 +154,7 @@ APPLE_AGX_BOOL AdmissionMemoryResolveLocalView(
     return APPLE_AGX_FALSE;
   total_offset = segment_offset + AllocationOffset;
   if (LocalHostPhysicalBase > ~0ULL - total_offset ||
-      LocalHostPhysicalBase + total_offset >= (1ULL << 40u))
+      LocalHostPhysicalBase + total_offset >= APPLE_AGX_PA_LIMIT)
     return APPLE_AGX_FALSE;
   View->CpuAddress =
       (void *)((unsigned char *)LocalCpuBase + total_offset);

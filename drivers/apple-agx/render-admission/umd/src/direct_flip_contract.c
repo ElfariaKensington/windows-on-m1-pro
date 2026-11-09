@@ -1,4 +1,5 @@
 #include "direct_flip_contract.h"
+#include "apple_agx_scanout.h"
 
 static int AdmissionUmdDirectFlipResourceValid(
     const ADMISSION_UMD_DIRECT_FLIP_RESOURCE *Resource,
@@ -14,9 +15,9 @@ static int AdmissionUmdDirectFlipResourceValid(
   allocation = &Resource->Allocation;
   return AdmissionAllocationDescriptionValid(allocation) &&
                  allocation->Format == ExpectedFormat &&
-                 allocation->Width == 2560u &&
-                 allocation->Height == 1600u &&
-                 allocation->Pitch == 10240u &&
+                 allocation->Width == APPLE_AGX_SCANOUT_J313_WIDTH &&
+                 allocation->Height == APPLE_AGX_SCANOUT_J313_HEIGHT &&
+                 allocation->Pitch == APPLE_AGX_SCANOUT_J313_STRIDE &&
                  allocation->BytesPerPixel == 4u &&
                  allocation->Size == 0xfa0000ULL &&
                  allocation->CpuVisible == 0u

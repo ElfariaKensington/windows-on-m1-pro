@@ -1,0 +1,88 @@
+[Version]
+Signature="$WINDOWS NT$"
+Class=Display
+ClassGuid={4d36e968-e325-11ce-bfc1-08002be10318}
+Provider=%ProviderName%
+DriverVer=11/09/2026,30.0.2009.0
+CatalogFile=AppleAgxJ316s.cat
+PnpLockdown=1
+
+[DestinationDirs]
+; 13 = the driver store. A Universal INF that uses DIRID 13 must run its
+; service binary from there too (InfVerif 2600, driver package isolation).
+Admission.KmdCopyFiles=13
+Admission.UmdCopyFiles=11
+
+[Manufacturer]
+%ManufacturerName%=Models,NTarm64.10.0...22000
+
+[Models.NTarm64.10.0...22000]
+%DeviceName%=Admission_Install,ACPI\APPL0002
+
+[Admission_Install]
+CopyFiles=Admission.KmdCopyFiles,Admission.UmdCopyFiles
+AddReg=Admission.SoftwareSettings
+FeatureScore=F9
+
+[Admission_Install.Services]
+AddService=AppleAgxAdmission,0x00000002,Admission_Service
+
+[Admission_Service]
+DisplayName=%ServiceName%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%13%\AppleAgxRenderAdmission.sys
+
+[Admission.KmdCopyFiles]
+AppleAgxRenderAdmission.sys
+
+[Admission.UmdCopyFiles]
+AppleAgxRenderAdmissionUmd.dll,,,0x4000
+
+; EXP1155: 32-bit games (hl.exe) use Microsoft's opengl32.dll, which loads the
+; adapter's OpenGL ICD named by KMTQAITYPE_UMOPENGLINFO; 32-bit callers on a
+; 64-bit system get the ...Wow values ("Loading an OpenGL Installable Client
+; Driver", Microsoft Learn). The ICD is the x86 Mesa WGL/Asahi build.
+
+; EXP1222: opengl32's PresentBuffers creates a D3D11 device in the calling
+; (32-bit) process for a window's redirection surface, and 32-bit D3D games
+; need one too: the WOW64 build of the D3D user-mode driver, registered as
+; UserModeDriverNameWow and copied to %systemroot%\SysWOW64 ("Windows Display
+; Driver Model (WDDM) 64-Bit Issues", Microsoft Learn).
+
+[Admission.SoftwareSettings]
+HKR,,UserModeDriverName,%REG_MULTI_SZ%,AppleAgxRenderAdmissionUmd.dll,AppleAgxRenderAdmissionUmd.dll,AppleAgxRenderAdmissionUmd.dll,AppleAgxRenderAdmissionUmd.dll
+; OpenGLFlags bit 0 is set for compatibility. EXP1194: bit 1 is set -- the
+; runtime then does not call the ICD's finish before its swap-buffers
+; ("Loading an OpenGL Installable Client Driver"). The ICD's swap flushes
+; the frame and presents through a GPU copy whose completion its present
+; ring waits for (EXP1191 winsys framebuffer), so the runtime's glFinish only
+; serialized CPU and GPU every frame (EXP1192/1193).
+; EXP1160: dxgkrnl reads OpenGLVersion/Flags and their Wow values only when
+; the native OpenGLDriverName exists, and opengl32.dll declines an ICD
+; reported as version 0. No ARM64 ICD is built yet: native callers fail to
+; load the named file and keep Microsoft's GDI Generic implementation.
+; M2: VidMm (dxgmms2) gives an allocation 64 KB system-memory pages only when
+; the adapter opts in through MemoryManager\Supports64KBPages and the KMD
+; reports DXGK_GPUMMUCAPS.SysMem64KBPageSupported; AGX maps 16 KiB pages, so
+; GPU-accessed system memory needs those 64 KiB contiguous chunks
+; (investigation/analysis/M2-vidmm-64k-decision.md).
+HKR,MemoryManager,Supports64KBPages,%REG_DWORD%,1
+
+[SourceDisksNames]
+1=%DiskName%,,,
+
+[SourceDisksFiles]
+AppleAgxRenderAdmission.sys=1
+AppleAgxRenderAdmissionUmd.dll=1
+
+[Strings]
+ProviderName="Windows on Apple Silicon Project"
+ManufacturerName="Windows on Apple Silicon Project"
+DeviceName="Apple M1 Pro GPU (AGX G13S, J316s port)"
+ServiceName="Apple AGX J316s KMD"
+DiskName="Apple AGX J316s package"
+REG_MULTI_SZ=0x00010000
+REG_SZ=0x00000000
+REG_DWORD=0x00010001

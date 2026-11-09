@@ -811,6 +811,18 @@ _Use_decl_annotations_ void AdmissionRecordContext0Inventory(
   ZwClose(key);
 }
 
+_Use_decl_annotations_ void AdmissionRecordActivateStep(
+    ADMISSION_CONTEXT *Context,ULONG Step,ULONGLONG A,ULONGLONG B) {
+  HANDLE key=NULL;
+  if(!Context || !Context->PhysicalDeviceObject ||
+      !NT_SUCCESS(IoOpenDeviceRegistryKey(Context->PhysicalDeviceObject,
+          PLUGPLAY_REGKEY_DEVICE,KEY_SET_VALUE,&key))) return;
+  WriteDword(key,L"Wom1ActivateStep",Step);
+  WriteQword(key,L"Wom1ActivateA",(LONGLONG)A);
+  WriteQword(key,L"Wom1ActivateB",(LONGLONG)B);
+  ZwClose(key);
+}
+
 _Use_decl_annotations_ void AdmissionRecordFirmwareIo(
     ADMISSION_CONTEXT *Context,ULONG Result,const AGX_FW_IO_MANIFEST *Manifest) {
   HANDLE key=NULL; LARGE_INTEGER time;

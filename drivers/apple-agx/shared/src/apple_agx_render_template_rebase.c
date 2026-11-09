@@ -1,7 +1,8 @@
 #include "apple_agx_render_template_rebase.h"
+#include "apple_agx_pa.h"
 
 #define REBASE_NULL ((void *)0)
-#define REBASE_PHYSICAL_LIMIT (1ULL << 40u)
+#define REBASE_PHYSICAL_LIMIT APPLE_AGX_PA_LIMIT
 
 static APPLE_AGX_BOOL AppleAgxRenderTemplateDefaultRoots(
     const APPLE_AGX_RENDER_TEMPLATE_ROOTS *Roots) {

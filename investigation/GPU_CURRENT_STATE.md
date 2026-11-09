@@ -1,3 +1,15 @@
+## J316s GPU-001 (2026-11-09): T6000 inventory probe installed, boot pending
+
+WHY CLEAN RECONSTRUCTION (unchanged): J313 stack is not portable as-is (40-bit
+PA/UAT limits vs T6000 DRAM at 0x10000000000; captured J313 initdata template;
+J313 m1n1 brokers). Windows boot runs the Asahi stub's macOS 13.5 (22G74) GPU
+firmware (armfw_g13x), not macOS 27's. No proxy host: evidence comes from the
+boot itself. Installed m1n1 probe logs the live 13.5 ADT, GPU regions, pmgr
+chain, SGX ID/core masks to ESP ::m1n1/gpulog.bin. Read with
+`sudo sh scripts/read-j316s-gpulog.sh`. Next target after evidence: T6000 AGX
+contract + hwdata profile from the logged ADT and core masks, then G1-style
+firmware start. See EXPERIMENTS.md J316s-GPU-001.
+
 ## J316 OOBE input repair (2026-11-07)
 
 J316S-INPUT-REPAIR-003: online driver approval blocks bootstrap before input.

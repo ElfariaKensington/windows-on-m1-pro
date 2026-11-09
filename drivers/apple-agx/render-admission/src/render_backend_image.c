@@ -1,10 +1,11 @@
 #include "render_backend_image.h"
+#include "apple_agx_pa.h"
 #include "render_dynamic_overlay.h"
 #include "apple_agx_render_template_vm_slot.h"
 #include <string.h>
 
 #define ADMISSION_BACKEND_IMAGE_NULL ((void *)0)
-#define ADMISSION_BACKEND_PHYSICAL_LIMIT (1ULL << 40u)
+#define ADMISSION_BACKEND_PHYSICAL_LIMIT APPLE_AGX_PA_LIMIT
 
 static void AdmissionBackendImageZero(
     ADMISSION_BACKEND_IMAGE *Image) {
@@ -257,9 +258,9 @@ APPLE_AGX_BOOL AdmissionBackendImageBindNativeSubmission(
       Native->DestinationBytes!=Packet->DestinationBytes ||
       Native->DestinationBytes>0xffffffffULL ||
       Packet->DestinationGpuVa>=(1ULL<<40) ||
-      Packet->DestinationPhysical>=(1ULL<<40) ||
+      Packet->DestinationPhysical>=APPLE_AGX_PA_LIMIT ||
       Native->DestinationBytes>(1ULL<<40)-Packet->DestinationGpuVa ||
-      Native->DestinationBytes>(1ULL<<40)-Packet->DestinationPhysical)
+      Native->DestinationBytes>APPLE_AGX_PA_LIMIT-Packet->DestinationPhysical)
     return APPLE_AGX_FALSE;
   Image->Pristine=APPLE_AGX_FALSE;
   output=&Image->Objects[APPLE_AGX_EXP208_GDI_OUTPUT_OBJECT];

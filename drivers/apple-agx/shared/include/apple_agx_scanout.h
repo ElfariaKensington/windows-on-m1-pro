@@ -32,10 +32,25 @@ typedef unsigned long long APPLE_AGX_SCANOUT_U64;
    APPLE_AGX_SCANOUT_CAP_REPEATED_PRESENT |                                  \
    APPLE_AGX_SCANOUT_CAP_LATCHED_RECEIPT | APPLE_AGX_SCANOUT_CAP_LATCHED_IRQ)
 
+#ifdef APPLE_AGX_PLATFORM_J316S
+/* J316s: m1n1 presents the surface onto the 3456x2234 panel at 2x, centered.
+ * 1728x1088 keeps the current UI scale and a 16 KiB-multiple surface. */
+#define APPLE_AGX_SCANOUT_J313_WIDTH 1728u
+#define APPLE_AGX_SCANOUT_J313_HEIGHT 1088u
+#define APPLE_AGX_SCANOUT_J313_STRIDE 6912u
+#define APPLE_AGX_SCANOUT_J313_SURFACE_SIZE 0x72c000ULL
+#define APPLE_AGX_PANEL_TOTAL_WIDTH 1808u
+#define APPLE_AGX_PANEL_TOTAL_HEIGHT 1120u
+#define APPLE_AGX_PANEL_PIXEL_RATE 121497600u
+#else
 #define APPLE_AGX_SCANOUT_J313_WIDTH 2560u
 #define APPLE_AGX_SCANOUT_J313_HEIGHT 1600u
 #define APPLE_AGX_SCANOUT_J313_STRIDE 10240u
 #define APPLE_AGX_SCANOUT_J313_SURFACE_SIZE 0xfa0000ULL
+#define APPLE_AGX_PANEL_TOTAL_WIDTH 2642u
+#define APPLE_AGX_PANEL_TOTAL_HEIGHT 1682u
+#define APPLE_AGX_PANEL_PIXEL_RATE 266630000u
+#endif
 /* M2-f2c: the pool is segment 2 of the receipt-sized reserve; this is its
  * J313 maximum (a 1 GiB reserve less the private span and backend arena). */
 #define APPLE_AGX_SCANOUT_J313_POOL_MAX_SIZE 0x3b800000ULL

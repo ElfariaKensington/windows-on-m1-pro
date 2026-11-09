@@ -97,6 +97,35 @@ static const unsigned int
         0x40a90fdbu, 0x00000000u, 0x00000000u, 0x00000000u,
         0x00000000u};
 
+#ifdef APPLE_AGX_PLATFORM_J316S
+#include "apple_agx_regionc_t6000.generated.inc"
+#define REGIONC_WORDS AppleAgxRegionCT6000Words
+#define REGIONC_FREQS AppleAgxRegionCT6000Frequencies
+#define REGIONC_VOLTS AppleAgxRegionCT6000Voltages
+#define REGIONC_SCALARS AppleAgxRegionCT6000Scalars
+#define REGIONC_PERF_COUNT APPLE_AGX_REGIONC_T6000_PERF_STATE_COUNT
+#define REGIONC_TABLE_COUNT APPLE_AGX_REGIONC_T6000_PERF_TABLE_COUNT
+#define REGIONC_BASE_PSTATE APPLE_AGX_REGIONC_T6000_BASE_PSTATE
+#define REGIONC_MAX_PSTATE APPLE_AGX_REGIONC_T6000_MAX_PSTATE
+#define REGIONC_SAMPLE_MS APPLE_AGX_REGIONC_T6000_SAMPLE_PERIOD_MS
+#define REGIONC_GPU_REGION APPLE_AGX_REGIONC_T6000_GPU_REGION_BASE
+#define REGIONC_PRESENCE APPLE_AGX_REGIONC_T6000_SCALAR_PRESENCE
+#define REGIONC_ORACLE APPLE_AGX_REGIONC_T6000_ORACLE_FNV1A64
+#else
+#define REGIONC_WORDS AppleAgxRegionCJ313Words
+#define REGIONC_FREQS AppleAgxRegionCJ313Frequencies
+#define REGIONC_VOLTS AppleAgxRegionCJ313Voltages
+#define REGIONC_SCALARS AppleAgxRegionCJ313Scalars
+#define REGIONC_PERF_COUNT 7u
+#define REGIONC_TABLE_COUNT 1u
+#define REGIONC_BASE_PSTATE 1u
+#define REGIONC_MAX_PSTATE 6u
+#define REGIONC_SAMPLE_MS 8u
+#define REGIONC_GPU_REGION 0x9fffb8000ULL
+#define REGIONC_PRESENCE APPLE_AGX_REGIONC_J313_SCALAR_PRESENCE
+#define REGIONC_ORACLE APPLE_AGX_REGIONC_J313_ORACLE_FNV1A64
+#endif
+
 static unsigned char AppleAgxRegionCIsZero(const unsigned char *data,
                                            unsigned int size) {
   unsigned int index;
@@ -110,17 +139,17 @@ static unsigned char AppleAgxRegionCIsZero(const unsigned char *data,
 static unsigned char AppleAgxRegionCMatchesJ313(
     const APPLE_AGX_CONFIG_SNAPSHOT *snapshot) {
   unsigned int index;
-  if (snapshot->PerfStateCount != 7u ||
-      snapshot->PerfStateTableCount != 1u || snapshot->BasePstate != 1u ||
-      snapshot->MaxPstate != 6u || snapshot->PowerSamplePeriodMs != 8u ||
-      snapshot->GpuRegionBase != 0x9fffb8000ULL ||
-      snapshot->ScalarPresence != APPLE_AGX_REGIONC_J313_SCALAR_PRESENCE)
+  if (snapshot->PerfStateCount != REGIONC_PERF_COUNT ||
+      snapshot->PerfStateTableCount != REGIONC_TABLE_COUNT ||
+      snapshot->BasePstate != REGIONC_BASE_PSTATE ||
+      snapshot->MaxPstate != REGIONC_MAX_PSTATE ||
+      snapshot->PowerSamplePeriodMs != REGIONC_SAMPLE_MS ||
+      snapshot->GpuRegionBase != REGIONC_GPU_REGION ||
+      snapshot->ScalarPresence != REGIONC_PRESENCE)
     return 0u;
-  for (index = 0u; index < 7u; ++index) {
-    if (snapshot->PerfStates[index].FrequencyHz !=
-            AppleAgxRegionCJ313Frequencies[index] ||
-        snapshot->PerfStates[index].VoltageMv !=
-            AppleAgxRegionCJ313Voltages[index])
+  for (index = 0u; index < REGIONC_PERF_COUNT; ++index) {
+    if (snapshot->PerfStates[index].FrequencyHz != REGIONC_FREQS[index] ||
+        snapshot->PerfStates[index].VoltageMv != REGIONC_VOLTS[index])
       return 0u;
   }
   for (; index < APPLE_AGX_CONFIG_MAX_PERF_STATES; ++index) {
@@ -128,9 +157,8 @@ static unsigned char AppleAgxRegionCMatchesJ313(
         snapshot->PerfStates[index].VoltageMv != 0u)
       return 0u;
   }
-  return (unsigned char)(memcmp(snapshot->ScalarBits,
-                                AppleAgxRegionCJ313Scalars,
-                                sizeof(AppleAgxRegionCJ313Scalars)) == 0);
+  return (unsigned char)(memcmp(snapshot->ScalarBits, REGIONC_SCALARS,
+                                sizeof(REGIONC_SCALARS)) == 0);
 }
 
 static void AppleAgxRegionCWriteU32(unsigned char *destination,
@@ -155,12 +183,10 @@ APPLE_AGX_REGIONC_RESULT AppleAgxRegionCEncodeJ313G13V13_5(
     return AppleAgxRegionCResultSnapshotMismatch;
 
   for (index = 0u;
-       index < sizeof(AppleAgxRegionCJ313Words) /
-                   sizeof(AppleAgxRegionCJ313Words[0]);
+       index < sizeof(REGIONC_WORDS) / sizeof(REGIONC_WORDS[0]);
        ++index) {
-    AppleAgxRegionCWriteU32(
-        Destination + AppleAgxRegionCJ313Words[index].Offset,
-        AppleAgxRegionCJ313Words[index].Value);
+    AppleAgxRegionCWriteU32(Destination + REGIONC_WORDS[index].Offset,
+                            REGIONC_WORDS[index].Value);
   }
   AppleAgxRegionCWriteU32(Destination + APPLE_AGX_REGIONC_J313_IDLE_OFF_DELAY_OFFSET,
                           APPLE_AGX_REGIONC_J313_IDLE_OFF_DELAY_MS);
@@ -168,8 +194,7 @@ APPLE_AGX_REGIONC_RESULT AppleAgxRegionCEncodeJ313G13V13_5(
                           APPLE_AGX_REGIONC_J313_PROGRESS_3D_MS);
   Manifest->EncodedSize = DestinationSize;
   Manifest->NonzeroWordCount =
-      (unsigned int)(sizeof(AppleAgxRegionCJ313Words) /
-                     sizeof(AppleAgxRegionCJ313Words[0]));
-  Manifest->OracleFnv1a64 = APPLE_AGX_REGIONC_J313_ORACLE_FNV1A64;
+      (unsigned int)(sizeof(REGIONC_WORDS) / sizeof(REGIONC_WORDS[0]));
+  Manifest->OracleFnv1a64 = REGIONC_ORACLE;
   return AppleAgxRegionCResultOk;
 }

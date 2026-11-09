@@ -129,9 +129,11 @@ APPLE_AGX_RTKIT_SESSION_RESULT AppleAgxRtkitSessionStartCpuAndInitializeHandoff(
    * management HELLO exchange; firmware otherwise waits for this transition. */
   if (Handoff != APPLE_AGX_RTKIT_SESSION_NULL &&
       AppleAgxGfxHandoffInitialize(Handoff, DeadlineMs) !=
-          AppleAgxGfxHandoffResultOk)
+          AppleAgxGfxHandoffResultOk) {
+    AppleAgxRtkitSessionCaptureFailureMailbox(Session, Io);
     return AppleAgxRtkitSessionForceRunOff(
         Session, Io, AppleAgxRtkitSessionResultTimeout);
+  }
   return AppleAgxRtkitSessionResultOk;
 }
 

@@ -1,4 +1,5 @@
 #include "apple_agx_exp208_framebuffer.h"
+#include "apple_agx_pa.h"
 
 #define FRAMEBUFFER_NULL ((void *)0)
 #define FRAMEBUFFER_TPC_OBJECT 64u
@@ -346,8 +347,8 @@ APPLE_AGX_BOOL AppleAgxExp208FramebufferBind(
       (ArenaGpuAddress & (APPLE_AGX_RENDER_TEMPLATE_ALIGNMENT - 1u)) != 0ULL ||
       (ArenaPhysicalAddress & 0x3fffULL) != 0ULL ||
       ArenaGpuAddress > ~0ULL - ArenaCapacity ||
-      ArenaPhysicalAddress >= (1ULL << 40u) ||
-      ArenaPhysicalAddress > (1ULL << 40u) - ArenaCapacity)
+      ArenaPhysicalAddress >= APPLE_AGX_PA_LIMIT ||
+      ArenaPhysicalAddress > APPLE_AGX_PA_LIMIT - ArenaCapacity)
     return APPLE_AGX_FALSE;
   arenaObject = &Objects[APPLE_AGX_RENDER_TEMPLATE_ARENA_OBJECT_INDEX];
   if (!FramebufferObjectMatches(

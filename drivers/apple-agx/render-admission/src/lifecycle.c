@@ -1025,7 +1025,7 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiQueryAdapterInfo(
       physicalMemoryCaps =
           (DXGK_PHYSICAL_MEMORY_CAPS *)QueryAdapterInfo->pOutputData;
       RtlZeroMemory(physicalMemoryCaps, sizeof(*physicalMemoryCaps));
-      physicalMemoryCaps->HighestVisibleAddress.QuadPart = 0xFFFFFFFFFFLL;
+      physicalMemoryCaps->HighestVisibleAddress.QuadPart = (LONGLONG)(APPLE_AGX_PA_LIMIT - 1ULL);
       status = STATUS_SUCCESS;
     }
     break;

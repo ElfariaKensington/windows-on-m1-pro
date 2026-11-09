@@ -1,4 +1,5 @@
 #include "apple_agx_uat_publication.h"
+#include "apple_agx_pa.h"
 
 static unsigned long long AppleAgxUatPublicationReadU64(
     volatile const unsigned char *source) {
@@ -18,7 +19,7 @@ static void AppleAgxUatPublicationWriteU64(
 
 static unsigned char AppleAgxUatPublicationPairValid(
     const APPLE_AGX_UAT_TTBR_PAIR *pair) {
-  const unsigned long long address_limit = 1ULL << 40u;
+  const unsigned long long address_limit = APPLE_AGX_PA_LIMIT;
   const unsigned long long address_mask = address_limit - 1ULL;
   const unsigned long long asid_mask = 0xffff000000000000ULL;
   unsigned long long asid;
