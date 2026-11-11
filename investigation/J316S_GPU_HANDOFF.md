@@ -12,16 +12,20 @@ See J316s-GPU-004 in [EXPERIMENTS.md](EXPERIMENTS.md) for build and rollback.
 On GPU-004, build 30.0.2009.0 completed activation (step 8), firmware
 I/O, hwdata and all 207 context-0 maps. The shared 3-second deadline
 expired during 3.96 seconds of mapping, before the first RTKit send.
-Build 30.0.2010.0 has separate CPU, root publication and management
-deadlines on J316s. On the next run, check `Wom1RtkitHelloSeen`,
-`Wom1RtkitReceivedCount`, `Wom1RetainedManagementTrace`, and adapter status.
+Build 30.0.2010.0 passed RTKit management, endpoint startup and backend
+start on hardware. Windows then rejected the 1728x1117 Mu POST framebuffer
+with 0xc01e0002, leaving the adapter at Code 43. Build 30.0.2011.0 and GPU-005
+implement the paired display correction. Collect `Wom1PostDisplayRoute`,
+`Wom1StartStage`, `Wom1StartStatus`, scanout/present receipts and any new
+WATCHDOG dump before changing the candidate. Verify the panel shows a
+known frame and that the latch acknowledges the same swap.
 
 ## Known not done (will block rendering even after boot works)
 - Render template (apple_agx_render_template.generated.c) is a J313 single-cluster capture; T6000 needs
   multi-cluster fields (see J316S_GPU_PORT.md "Findings").
 - hwdata T6000 profile uses placeholder fuse-dependent fields patched from m1n1 (AgxHwdataMaterialize).
-- m1n1 hv_agx_gpuva_v5.c GPUVA_PA_MASK is still 40-bit (0x000000ffffffc000); needs APPLE_AGX_UAT_OA_MASK.
-  m1n1 submodule changes (m1n1_windows, mu) are NOT pushed.
+- GPUVA leaf accounting now uses the platform 42-bit mask in m1n1 commit
+  4c88ab14. The above-1-TiB replay passes. GPU-005 predates that commit.
 
 ## Gotchas
 - Build is macOS-only (clang-cl/lld, pinned WDK in .build/j316s-fresh-input). `FORCE=1` is required after any header edit

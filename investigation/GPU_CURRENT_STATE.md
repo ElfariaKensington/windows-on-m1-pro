@@ -1,3 +1,22 @@
+## J316s GPU-005 and KMD 2011 (2026-11-11)
+
+- Native GPU-004/2010 completed RTKit HELLO, endpoints 20/21, and backend
+  startup. The driver rejected a successful POST handoff reporting
+  1728x1117, pitch 6912, IPA 0x85f000000. Windows reported Code 43.
+- GPU-005/2011 adopts the Mu POST mode, shares the 1728x1088 runtime mode
+  with the scanout broker, resolves a surface across the validated
+  contiguous pool, and acknowledges latch after the CPU copy. The new
+  EFI and signed package are built and hash-pinned, with GPU-004/2010
+  retained for recovery. Native display admission and latch are pending.
+- Separate GPUVA correction preserves 42-bit physical addresses during
+  leaf accounting and revoke. The T6000 host replay above 1 TiB is green.
+  This correction is later than the GPU-005 build and has no native verdict.
+- Next checkpoint: POST AdoptPost, successful scanout registration,
+  Windows adapter started, then an actual copied/latching frame.
+  Rendering qualification follows with a T6000-specific command image
+  and known-pixel submission, followed by stable DWM and clean teardown.
+  See J316s-GPU-005 in EXPERIMENTS.md for exact evidence and hashes.
+
 ## J316s GPU-004 and KMD 2010 (2026-11-11)
 
 GPU-003 contains a 40-bit UAT table lookup mask in the installed m1n1
