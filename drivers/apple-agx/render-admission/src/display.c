@@ -71,6 +71,13 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiQueryChildRelations(
   }
 
   RtlZeroMemory(ChildRelations, ChildRelationsSize);
+  if (context->RenderOnly) {
+    /* Render-only: no children, only the TypeUndefined terminator. */
+    AdmissionRecordDisplayDdi(context->PhysicalDeviceObject,
+                              AdmissionDisplayDdiQueryChildRelations, 2u,
+                              status);
+    return status;
+  }
   ChildRelations[0].ChildDeviceType = TypeVideoOutput;
   ChildRelations[0].ChildCapabilities.HpdAwareness =
       /* J313 is a portable computer.  The integrated panel follows the
@@ -109,7 +116,7 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiQueryChildStatus(
   else if (ChildStatus->Type != StatusConnection)
     status = STATUS_NOT_SUPPORTED;
   else
-    ChildStatus->HotPlug.Connected = TRUE;
+    ChildStatus->HotPlug.Connected = context->RenderOnly ? FALSE : TRUE;
   AdmissionRecordDisplayDdi(context->PhysicalDeviceObject,
                             AdmissionDisplayDdiQueryChildStatus, 2u, status);
   return status;

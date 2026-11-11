@@ -603,6 +603,10 @@ typedef struct _ADMISSION_CONTEXT {
   volatile LONG64 PagingRecordSeq;
   PVOID PlatformRuntime;
   PVOID ScanoutRuntime;
+  /* TRUE (default): adapter reports zero VidPn sources/children and never
+   * acquires POST display ownership, so ROOT\BasicDisplay keeps the panel.
+   * Set per start from the device-key DWORD DisplayOwner (1 = own the panel). */
+  BOOLEAN RenderOnly;
   APPLE_AGX_SOFTWARE_APERTURE_ENTRY *ApertureEntries;
   PDEVICE_OBJECT PhysicalDeviceObject;
   DXGK_START_INFO StartInfo;
@@ -1097,6 +1101,11 @@ typedef struct _ADMISSION_MEMORY_QUALIFICATION {
 
 void AdmissionRecordService(_In_ PUNICODE_STRING RegistryPath,
                             _In_ PCWSTR Name, _In_ ULONG Value);
+/* Render-only policy, decided once in DriverEntry from the service key
+ * (DisplayOwner=1 = own the panel). Render-only registers NO display DDIs with
+ * dxgkrnl, so ROOT\BasicDisplay keeps the screen. */
+extern BOOLEAN AdmissionRenderOnlyMode;
+BOOLEAN AdmissionServiceDisplayOwner(_In_ PUNICODE_STRING RegistryPath);
 #if ADMISSION_GPUVA_G1B_PAGE_PROFILE != 0
 void AdmissionRecordG1bAllocationInput(_In_opt_ PDEVICE_OBJECT DeviceObject,
                                        _In_ USHORT MinimumPageSize,

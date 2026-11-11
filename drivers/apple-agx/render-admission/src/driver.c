@@ -106,6 +106,43 @@ _Use_decl_annotations_ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject,
   initialization.DxgkDdiSetRootPageTable = AdmissionDdiSetRootPageTable;
 #endif
 
+#if defined(APPLE_AGX_PLATFORM_J316S)
+  AdmissionRenderOnlyMode = AdmissionServiceDisplayOwner(RegistryPath) ? FALSE : TRUE;
+#else
+  AdmissionRenderOnlyMode = FALSE;
+#endif
+  AdmissionRecordService(RegistryPath, L"Wom1CleanRenderOnlyMode",
+                         AdmissionRenderOnlyMode ? 1u : 0u);
+  if (AdmissionRenderOnlyMode) {
+    /* dxgkrnl (26100 ARM64) treats an adapter as render-only when the VidPn
+     * display DDIs are NULL and StartDevice reports 0 sources / 0 children
+     * (2013 kept every display DDI and failed post-start with 0 sources).
+     * DxgkInitialize itself still REQUIRES QueryChildRelations,
+     * QueryChildStatus and QueryDeviceDescriptor to be non-NULL (2014 NULLed
+     * them: 0xC0000059 / Code 37), so those three stay and answer "no
+     * children". */
+    initialization.DxgkDdiSetPalette = NULL;
+    initialization.DxgkDdiSetPointerPosition = NULL;
+    initialization.DxgkDdiSetPointerShape = NULL;
+    initialization.DxgkDdiIsSupportedVidPn = NULL;
+    initialization.DxgkDdiRecommendFunctionalVidPn = NULL;
+    initialization.DxgkDdiEnumVidPnCofuncModality = NULL;
+    initialization.DxgkDdiSetVidPnSourceVisibility = NULL;
+    initialization.DxgkDdiCommitVidPn = NULL;
+    initialization.DxgkDdiUpdateActiveVidPnPresentPath = NULL;
+    initialization.DxgkDdiRecommendMonitorModes = NULL;
+    initialization.DxgkDdiUpdateMonitorLinkInfo = NULL;
+    initialization.DxgkDdiGetScanLine = NULL;
+    initialization.DxgkDdiStopCapture = NULL;
+    initialization.DxgkDdiQueryVidPnHWCapability = NULL;
+    initialization.DxgkDdiSetVidPnSourceAddress = NULL;
+    initialization.DxgkDdiSetVidPnSourceAddressWithMultiPlaneOverlay3 = NULL;
+    initialization.DxgkDdiStopDeviceAndReleasePostDisplayOwnership = NULL;
+    initialization.DxgkDdiCreateOverlay = NULL;
+    initialization.DxgkDdiUpdateOverlay = NULL;
+    initialization.DxgkDdiFlipOverlay = NULL;
+    initialization.DxgkDdiDestroyOverlay = NULL;
+  }
   status = DxgkInitialize(DriverObject, RegistryPath, &initialization);
   AdmissionRecordService(RegistryPath, L"Wom1CleanDxgkInitializeStatus", (ULONG)status);
   return status;

@@ -830,6 +830,8 @@ _Use_decl_annotations_ NTSTATUS AdmissionScanoutRetireAllocation(
   ADMISSION_SCANOUT_RUNTIME *runtime = AdmissionScanoutGet(Context);
   KIRQL oldIrql;
   BOOLEAN active;
+  if (runtime == NULL && Context != NULL && Context->ScanoutRuntime == NULL)
+    return STATUS_SUCCESS; /* render-only: no scanout lease can exist */
   if (runtime == NULL || Owner == NULL || KeGetCurrentIrql() != PASSIVE_LEVEL)
     return STATUS_INVALID_PARAMETER;
   KeAcquireSpinLock(&runtime->LeaseLock, &oldIrql);

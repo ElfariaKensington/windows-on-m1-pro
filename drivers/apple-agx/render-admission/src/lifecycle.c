@@ -84,6 +84,16 @@ static BOOLEAN AdmissionConsumeGpuvaArm(ADMISSION_CONTEXT *context,
 }
 #endif
 
+/* Display ownership policy. Absent or 0 = render-only: the adapter never takes
+ * the panel from ROOT\BasicDisplay, so a black or failed T6000 scanout/render
+ * path cannot blank the screen. DisplayOwner=1 restores GPU-006 behaviour. */
+static BOOLEAN AdmissionDisplayOwnerRequested(ADMISSION_CONTEXT *context) {
+  UNREFERENCED_PARAMETER(context);
+  /* Decided in DriverEntry: the DDI table already omits (or includes) the
+   * display entries, so the device key cannot change the mode later. */
+  return AdmissionRenderOnlyMode ? FALSE : TRUE;
+}
+
 #if defined(APPLE_AGX_GPUVA_G3_QUALIFICATION)
 /* _CRS publishes the dynamic local range only when Mu read a valid R64
  * receipt. Check that resource shape before consuming the one-shot arm or
@@ -384,6 +394,12 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiStartDevice(
   return NT_SUCCESS(status) ? STATUS_NOT_SUPPORTED : status;
 #endif
 
+  context->RenderOnly = AdmissionDisplayOwnerRequested(context) ? FALSE : TRUE;
+  if (context->RenderOnly) {
+    AdmissionRecordStartStage(context, AdmissionStartPostDisplay,
+                              STATUS_SUCCESS);
+    AdmissionRecordStartStage(context, AdmissionStartScanout, STATUS_SUCCESS);
+  } else {
   if (context->Interface.DxgkCbAcquirePostDisplayOwnership == NULL) {
     AdmissionRecordPostDisplay(context, STATUS_NOT_SUPPORTED,
                                AppleAgxPostDisplayAcquireFailed,
@@ -456,6 +472,8 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiStartDevice(
     return status;
   }
 
+  } /* !RenderOnly: POST display ownership and scanout */
+
   context->Started = TRUE;
   if (!AdmissionObjectsStartAdapter(&context->ObjectAdapter)) {
     AdmissionRecordStartStage(
@@ -491,20 +509,22 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiStartDevice(
    * keeps two segments. */
   AdmissionMemoryPoolStart(context);
 #endif
-  context->DisplayActive = TRUE;
-  context->SourceVisible = TRUE;
-  context->CommittedWidth = APPLE_AGX_SCANOUT_J313_WIDTH;
-  context->CommittedHeight = APPLE_AGX_SCANOUT_J313_HEIGHT;
-  context->CommittedStride = APPLE_AGX_SCANOUT_J313_STRIDE;
-  context->CommittedFormat = D3DDDIFMT_A8R8G8B8;
+  if (!context->RenderOnly) {
+    context->DisplayActive = TRUE;
+    context->SourceVisible = TRUE;
+    context->CommittedWidth = APPLE_AGX_SCANOUT_J313_WIDTH;
+    context->CommittedHeight = APPLE_AGX_SCANOUT_J313_HEIGHT;
+    context->CommittedStride = APPLE_AGX_SCANOUT_J313_STRIDE;
+    context->CommittedFormat = D3DDDIFMT_A8R8G8B8;
+  }
   /* QueryAdapterInfo cannot run until StartDevice returns. Publish the complete
    * immutable implementation vector only after every runtime owner above has
    * started and the adapter object is live. */
   InterlockedExchange(&context->FeatureReadyMask,
                       APPLE_AGX_WDDM_REQUIRED_READY_MASK);
   AdmissionRecordStartStage(context, AdmissionStartComplete, STATUS_SUCCESS);
-  *NumberOfVideoPresentSources = 1;
-  *NumberOfChildren = 1;
+  *NumberOfVideoPresentSources = context->RenderOnly ? 0u : 1u;
+  *NumberOfChildren = context->RenderOnly ? 0u : 1u;
   AdmissionRecordDevice(context->PhysicalDeviceObject,
                         AdmissionReceiptStartSucceeded, STATUS_SUCCESS);
   return STATUS_SUCCESS;
@@ -734,7 +754,12 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiQueryAdapterInfo(
                      APPLE_AGX_WDDM_MANDATORY_CAPS_MASK) {
         caps->MaxAllocationListSlotId =
             ADMISSION_GDI_ALLOCATION_LIST_SIZE - 1u;
+        /* dxgkrnl (26100) rejects every non-ComputeOnly WDDM 2.0+ adapter that
+         * lacks FlipCaps.FlipOnVSyncMmIo ("Driver reports WDDM version 2.0 or
+         * higher but does not support FlipOnVSyncMmIo cap", validator 0x140105978,
+         * hit by 2015 -> Code 43).  Render-only adapters must still claim it. */
         caps->MaxQueuedFlipOnVSync = 1u;
+        caps->FlipCaps.FlipOnVSyncMmIo = 1u;
         caps->GpuEngineTopology.NbAsymetricProcessingNodes = 1u;
         caps->SchedulingCaps.MultiEngineAware = 1u;
         caps->SchedulingCaps.PreemptionAware = 1u;
@@ -742,14 +767,15 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiQueryAdapterInfo(
             D3DKMDT_GRAPHICS_PREEMPTION_DMA_BUFFER_BOUNDARY;
         caps->PreemptionCaps.ComputePreemptionGranularity =
             D3DKMDT_COMPUTE_PREEMPTION_DMA_BUFFER_BOUNDARY;
-        caps->FlipCaps.FlipOnVSyncMmIo = 1u;
-        caps->FlipCaps.FlipIndependent = 1u;
-        caps->SupportNonVGA = TRUE;
-        /* WDDM 1.2+ full graphics requires this even when the only exposed
-         * path transform is the already-supported identity/Offset0 pair. */
-        caps->SupportSmoothRotation = TRUE;
+        if (!AdmissionRenderOnlyMode) {
+          caps->FlipCaps.FlipIndependent = 1u;
+          caps->SupportNonVGA = TRUE;
+          /* WDDM 1.2+ full graphics requires this even when the only exposed
+           * path transform is the already-supported identity/Offset0 pair. */
+          caps->SupportSmoothRotation = TRUE;
+          caps->SupportDirectFlip = TRUE;
+        }
         caps->SupportPerEngineTDR = TRUE;
-        caps->SupportDirectFlip = TRUE;
         /* The current RenderKm path implements ColorFill only and the GPU
          * aperture is not declared cache-coherent.  Keep CDD GDI command
          * buffers disabled until both requirements are met. */

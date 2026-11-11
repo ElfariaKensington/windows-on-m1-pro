@@ -936,6 +936,36 @@ _Use_decl_annotations_ void AdmissionRecordService(
   ZwClose(key);
 }
 
+BOOLEAN AdmissionRenderOnlyMode = TRUE;
+
+_Use_decl_annotations_ BOOLEAN AdmissionServiceDisplayOwner(
+    PUNICODE_STRING RegistryPath) {
+  OBJECT_ATTRIBUTES attributes;
+  HANDLE key = NULL;
+  UNICODE_STRING name;
+  ULONG bytes = 0u;
+  BOOLEAN owner = FALSE;
+  union {
+    ULONGLONG Alignment;
+    UCHAR Buffer[sizeof(KEY_VALUE_PARTIAL_INFORMATION) + sizeof(ULONG)];
+  } data;
+  PKEY_VALUE_PARTIAL_INFORMATION value =
+      (PKEY_VALUE_PARTIAL_INFORMATION)data.Buffer;
+  InitializeObjectAttributes(&attributes, RegistryPath,
+                             OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL,
+                             NULL);
+  if (!NT_SUCCESS(ZwOpenKey(&key, KEY_QUERY_VALUE, &attributes)))
+    return FALSE;
+  RtlInitUnicodeString(&name, L"DisplayOwner");
+  if (NT_SUCCESS(ZwQueryValueKey(key, &name, KeyValuePartialInformation, value,
+                                 sizeof(data.Buffer), &bytes)) &&
+      value->Type == REG_DWORD && value->DataLength == sizeof(ULONG) &&
+      *(ULONG *)value->Data == 1u)
+    owner = TRUE;
+  ZwClose(key);
+  return owner;
+}
+
 _Use_decl_annotations_ void AdmissionRecordDevice(
     PDEVICE_OBJECT DeviceObject, ADMISSION_RECEIPT Receipt, NTSTATUS Status) {
   HANDLE key = NULL;
@@ -1465,6 +1495,9 @@ _Use_decl_annotations_ void AdmissionRecordQuery(
   WriteDword(key, L"Wom1CleanReceipt", (ULONG)AdmissionReceiptQueryAdapterInfo);
   WriteDword(key, L"Wom1CleanQueryType", (ULONG)Type);
   WriteDword(key, L"Wom1CleanQuerySize", OutputDataSize);
+  /* Stop/Remove overwrite Wom1CleanStatus. Preserve the query result paired
+   * with Wom1CleanQueryType across post-start rejection and cleanup. */
+  WriteDword(key, L"Wom1LastQueryStatus", (ULONG)Status);
   WriteDword(key, L"Wom1CleanStatus", (ULONG)Status);
 #if ADMISSION_GPUVA_G1B_PAGE_PROFILE != 0
   if ((ULONG)Type >= 39u && (ULONG)Type <= 46u) {

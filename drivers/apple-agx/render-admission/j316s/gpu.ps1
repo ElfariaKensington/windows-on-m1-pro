@@ -20,13 +20,36 @@ function Find-Oem {
     }
 }
 
+# Preserve the first armed start. A graphics-stack reset here can restart the
+# adapter after G3Armed has been consumed and replace the original failure.
+function Start-StartupTrace {
+    $script:traceName = "J316Agx-$stamp"
+    $script:tracePath = Join-Path $logs "startup-$stamp.etl"
+    & logman start $script:traceName -ets -o $script:tracePath -f bincirc -max 64 -ft 1 -p 'Microsoft-Windows-DxgKrnl' 0xFFFFFFFFFFFFFFFF 5
+    $script:traceStarted = ($LASTEXITCODE -eq 0)
+    "GPU startup trace enabled: $script:traceStarted"
+    if (-not $script:traceStarted) { throw 'Could not start GPU tracing. Driver installation has not begun.' }
+}
+function Stop-StartupTrace {
+    if ($script:traceStarted) {
+        & logman stop $script:traceName -ets
+        "GPU startup trace stopped: $LASTEXITCODE; $script:tracePath"
+        $script:traceStarted = $false
+    }
+}
+
 if ($Action -eq 'install') {
     Start-Transcript -Path (Join-Path $logs "install-$stamp.log") | Out-Null
     $cer = Join-Path $here 'J316Development.cer'
     certutil -f -addstore Root $cer
     certutil -f -addstore TrustedPublisher $cer
     bcdedit /enum '{current}' | Select-String -Pattern 'testsigning'
+    Start-StartupTrace
+    try {
     foreach ($old in (Find-Oem)) { pnputil /delete-driver $old /uninstall /force }
+    $serviceKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\AppleAgxAdmission'
+    New-Item -Path $serviceKey -Force | Out-Null
+    New-ItemProperty -Path $serviceKey -Name DisplayOwner -PropertyType DWord -Value 0 -Force | Out-Null
     # The KMD requires the one-shot G3Armed value (consumed on StartDevice); without it StartDevice
     # returns STATUS_NOT_SUPPORTED (Code 43). Arm right before the install starts the device.
     $dp = 'HKLM:\SYSTEM\CurrentControlSet\Enum\ACPI\APPL0002\0\Device Parameters'
@@ -36,6 +59,7 @@ if ($Action -eq 'install') {
     pnputil /add-driver $inf /install
     "pnputil exit $LASTEXITCODE"
     Start-Sleep -Seconds 15
+    } finally { Stop-StartupTrace }
     $ps = (Get-Command powershell).Source
     $arg = "-NoProfile -ExecutionPolicy Bypass -File `"$here\gpu.ps1`" collect"
     schtasks /Delete /TN $task /F 2>$null | Out-Null
@@ -68,7 +92,10 @@ else {
     if (Test-Path $setup) { Get-Content $setup -Tail 400 | Out-File "$d\setupapi-tail.txt" }
     if (Test-Path "$env:windir\Minidump") { Copy-Item "$env:windir\Minidump\*" $d -ErrorAction SilentlyContinue }
     if (Test-Path "$env:windir\LiveKernelReports\WATCHDOG") { Copy-Item "$env:windir\LiveKernelReports\WATCHDOG\*" $d -ErrorAction SilentlyContinue }
-    dxdiag /t "$d\dxdiag.txt"
-    Start-Sleep -Seconds 20
+    $dx = Start-Process -FilePath "$env:windir\System32\dxdiag.exe" -ArgumentList @('/t', "`"$d\dxdiag.txt`"") -PassThru
+    if (-not $dx.WaitForExit(30000)) {
+        "dxdiag did not finish in 30 seconds" | Out-File "$d\dxdiag-timeout.txt"
+        Stop-Process -Id $dx.Id -Force -ErrorAction SilentlyContinue
+    }
     "collected $(Get-Date -Format o)" | Out-File "$d\done.txt"
 }
