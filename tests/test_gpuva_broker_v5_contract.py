@@ -96,10 +96,16 @@ class BrokerV5ContractTests(unittest.TestCase):
             subprocess.run([str(binary)], check=True, timeout=10)
 
     def test_real_m1n1_broker_implementation(self):
+        self.check_real_m1n1_broker()
+
+    def test_real_j316s_broker_preserves_high_physical_addresses(self):
+        self.check_real_m1n1_broker("-DHV_AGX_PLATFORM_J316S", "-DAPPLE_AGX_PLATFORM_J316S")
+
+    def check_real_m1n1_broker(self, *defines):
         with tempfile.TemporaryDirectory(prefix="gpuva-v5-") as tmp:
             binary = Path(tmp) / "broker-test"
             cmd = [os.environ.get("CC", "clang"), "-std=c11", "-Wall", "-Wextra",
-                   "-Werror", "-fsanitize=address,undefined", "-I",
+                   "-Werror", "-fsanitize=address,undefined", *defines, "-I",
                    str(ROOT / "drivers/apple-agx/shared/include"),
                    str(ROOT / "m1n1_windows/tests/hv_agx_gpuva_v5_test.c"),
                    str(ROOT / "m1n1_windows/src/hv_agx_gpuva_v5.c"),
