@@ -1011,14 +1011,14 @@ _Use_decl_annotations_ NTSTATUS AdmissionScanoutQueuePresent(
       Context->Memory.Topology.Local.Base,
       window.Bytes, 0ULL,
       (APPLE_AGX_U64)Args->PrimaryAddress.QuadPart,
-      APPLE_AGX_SCANOUT_J313_SURFACE_SIZE, 0ULL, &surface_offset);
+      APPLE_AGX_SCANOUT_ALLOCATION_SIZE, 0ULL, &surface_offset);
   if (address_result != AppleAgxLocalSegmentAddressOk)
     return STATUS_INVALID_ADDRESS;
 #if defined(APPLE_AGX_VISIBLE_AGX_QUALIFICATION)
   if (surface_offset == 0ULL) {
     if (!NT_SUCCESS(AdmissionMemoryRuntimeResolveLocal(
             Context, (ULONGLONG)Args->PrimaryAddress.QuadPart,
-            description->Size, 0ULL, &fallbackMemory)))
+            APPLE_AGX_SCANOUT_ALLOCATION_SIZE, 0ULL, &fallbackMemory)))
       return STATUS_INVALID_ADDRESS;
     fallbackView.AllocationCpuAddress = fallbackMemory.CpuAddress;
     fallbackView.AllocationGpuAddress = fallbackMemory.GpuVirtualAddress;

@@ -55,6 +55,10 @@ typedef unsigned long long APPLE_AGX_SCANOUT_U64;
  * J313 maximum (a 1 GiB reserve less the private span and backend arena). */
 #define APPLE_AGX_SCANOUT_J313_POOL_MAX_SIZE 0x3b800000ULL
 #define APPLE_AGX_SCANOUT_ALIGNMENT 0x10000ULL
+/* VidMm allocates whole 64 KiB pages. The scanout wire uses pixel bytes. */
+#define APPLE_AGX_SCANOUT_ALLOCATION_SIZE                                    \
+  ((APPLE_AGX_SCANOUT_J313_SURFACE_SIZE + APPLE_AGX_SCANOUT_ALIGNMENT - 1ULL) & \
+   ~(APPLE_AGX_SCANOUT_ALIGNMENT - 1ULL))
 #define APPLE_AGX_SCANOUT_FORMAT_BGRA8888 1u
 #define APPLE_AGX_SCANOUT_IRQ_LATCHED (1u << 0u)
 #define APPLE_AGX_SCANOUT_IRQ_ERROR (1u << 1u)

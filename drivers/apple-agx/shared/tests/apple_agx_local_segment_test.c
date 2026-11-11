@@ -1,4 +1,5 @@
 #include "apple_agx_local_segment.h"
+#include "apple_agx_scanout.h"
 
 #include <assert.h>
 
@@ -90,5 +91,17 @@ int main(void) {
   test_segment_identity_and_bounds_fail_closed();
   test_alignment_and_allocation_offset_are_validated();
   test_invalid_and_overflowing_contracts_fail_closed();
+#ifdef APPLE_AGX_PLATFORM_J316S
+  APPLE_AGX_U64 offset = 0;
+  assert(AppleAgxLocalSegmentAddressToGpuVa(
+             2, 2, 0x1500000000ULL, 0x13800000ULL, 0,
+             0x15003d0000ULL, APPLE_AGX_SCANOUT_J313_SURFACE_SIZE, 0,
+             &offset) == AppleAgxLocalSegmentAddressMisaligned);
+  assert(AppleAgxLocalSegmentAddressToGpuVa(
+             2, 2, 0x1500000000ULL, 0x13800000ULL, 0,
+             0x15003d0000ULL, APPLE_AGX_SCANOUT_ALLOCATION_SIZE, 0,
+             &offset) == AppleAgxLocalSegmentAddressOk);
+  assert(offset == 0x3d0000ULL && APPLE_AGX_SCANOUT_ALLOCATION_SIZE == 0x730000ULL);
+#endif
   return 0;
 }

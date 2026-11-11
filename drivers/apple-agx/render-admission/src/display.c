@@ -765,7 +765,7 @@ _Use_decl_annotations_ NTSTATUS AdmissionDdiSetVidPnSourceAddress(
         NT_SUCCESS(AdmissionMemoryRuntimeResolveLocal(
             context,
             (ULONGLONG)SetVidPnSourceAddress->PrimaryAddress.QuadPart,
-            APPLE_AGX_SCANOUT_J313_SURFACE_SIZE, 0ULL,
+            APPLE_AGX_SCANOUT_ALLOCATION_SIZE, 0ULL,
             &selectedMemory)) &&
         NT_SUCCESS(AdmissionMemoryRuntimeScanoutView(context,
                                                       &scanoutMemory)) &&

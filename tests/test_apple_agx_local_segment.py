@@ -11,12 +11,18 @@ SHARED = ROOT / "drivers" / "apple-agx" / "shared"
 
 class AppleAgxLocalSegmentTests(unittest.TestCase):
     def test_physical_segment_offsets_translate_to_agx_gpu_virtual_addresses(self):
+        self.check_segment_address()
+
+    def test_j316s_primary_uses_aligned_allocation_span(self):
+        self.check_segment_address("-DAPPLE_AGX_PLATFORM_J316S")
+
+    def check_segment_address(self, *defines):
         with tempfile.TemporaryDirectory() as tmp:
             binary = Path(tmp) / "apple_agx_local_segment_test"
             subprocess.run([
                 os.environ.get("CC", "clang"),
                 "-std=c11", "-Wall", "-Wextra", "-Werror",
-                "-fsanitize=address,undefined",
+                "-fsanitize=address,undefined", *defines,
                 "-I", str(SHARED / "include"),
                 str(SHARED / "tests" / "apple_agx_local_segment_test.c"),
                 str(SHARED / "src" / "apple_agx_local_segment.c"),

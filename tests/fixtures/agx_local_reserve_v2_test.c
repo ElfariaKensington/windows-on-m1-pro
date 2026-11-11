@@ -57,5 +57,23 @@ int main(void) {
     assert(!hv_agx_local_scanout_allows(&r,r.host_pa+SEG-0x4000,0x8000));
     assert(!hv_agx_local_scanout_allows(&r,UINT64_MAX-1,0x4000));
     r.bytes=0; assert(!hv_agx_local_scanout_allows(&r,r.host_pa,0x4000));
+#ifdef HV_AGX_PLATFORM_J316S
+    {
+        const uint64_t base = 0x103c0000000ULL;
+        const uint64_t leaf = base + 0x3d0000ULL;
+        struct mapping m = {0};
+        assert(hv_agx_local_gpuva_public_leaf(base, SEG, leaf, translate, &m));
+        assert(m.calls == 8);
+        assert(hv_agx_local_gpuva_public_leaf(base, SEG, base + SEG - 0x4000,
+                                             translate, &m));
+        assert(!hv_agx_local_gpuva_public_leaf(base, SEG, base + SEG, translate, &m));
+        assert(!hv_agx_local_gpuva_public_leaf(base, SEG, leaf + 0x1000, translate, &m));
+        m.alias = leaf + 0x1fff;
+        assert(!hv_agx_local_gpuva_public_leaf(base, SEG, leaf, translate, &m));
+        m.alias = 0;
+        m.hole = leaf + 0x3fff;
+        assert(!hv_agx_local_gpuva_public_leaf(base, SEG, leaf, translate, &m));
+    }
+#endif
     return 0;
 }

@@ -22,10 +22,16 @@ class LocalReserveSelectorTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_v2_identity_full_span_and_no_candidate_drift(self):
+        self.check_reserve_v2()
+
+    def test_j316s_public_leaf_requires_stage2_identity(self):
+        self.check_reserve_v2("-DHV_AGX_PLATFORM_J316S")
+
+    def check_reserve_v2(self, *defines):
         with tempfile.TemporaryDirectory() as directory:
             binary = Path(directory) / "selector-v2"
             build = subprocess.run([os.environ.get("CC", "cc"), "-std=c11", "-Wall",
-                                    "-Wextra", "-Werror", "-DAGX_LOCAL_RESERVE_V2=1",
+                                    "-Wextra", "-Werror", "-DAGX_LOCAL_RESERVE_V2=1", *defines,
                                     "-I", str(SOURCE.parent),
                                     str(ROOT / "tests/fixtures/agx_local_reserve_v2_test.c"),
                                     str(SOURCE), "-o", str(binary)], capture_output=True, text=True)
