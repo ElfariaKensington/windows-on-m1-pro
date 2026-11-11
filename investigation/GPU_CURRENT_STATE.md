@@ -1,3 +1,17 @@
+## J316s GPU-006 and KMD 2012 (2026-11-11)
+
+- GPU-005/2011 reached Windows PnP Started, POST route AdoptPost and
+  StartDevice status 0. Windows continued writing diagnostics with a black
+  panel. The first source-address call rejected the 0x72c000 pixel length
+  as a VidMm allocation span. The 64 KiB-aligned span is 0x730000.
+- The same run's GPUVA shared-backing command rejected a public reserve
+  leaf at 0x103c03d0000 because the translator only admitted ordinary guest
+  RAM. GPU-006 admits identity-mapped public leaves after checking each
+  4 KiB subpage, and includes the 42-bit GPUVA descriptor correction.
+- Next native checkpoint: first primary accepted, backing grant/update
+  succeeds, matching applied/copied/latch receipt, and a visible desktop.
+  Rendering and restart/cleanup acceptance remain separate.
+
 ## J316s GPU-005 and KMD 2011 (2026-11-11)
 
 - Native GPU-004/2010 completed RTKit HELLO, endpoints 20/21, and backend
@@ -7,7 +21,8 @@
   with the scanout broker, resolves a surface across the validated
   contiguous pool, and acknowledges latch after the CPU copy. The new
   EFI and signed package are built and hash-pinned, with GPU-004/2010
-  retained for recovery. Native display admission and latch are pending.
+  retained for recovery. Native display admission passed. The first
+  source-address operation failed before latch.
 - Separate GPUVA correction preserves 42-bit physical addresses during
   leaf accounting and revoke. The T6000 host replay above 1 TiB is green.
   This correction is later than the GPU-005 build and has no native verdict.
