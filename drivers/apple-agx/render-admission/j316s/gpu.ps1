@@ -46,10 +46,16 @@ if ($Action -eq 'install') {
     bcdedit /enum '{current}' | Select-String -Pattern 'testsigning'
     Start-StartupTrace
     try {
-    foreach ($old in (Find-Oem)) { pnputil /delete-driver $old /uninstall /force }
+    foreach ($old in (Find-Oem)) {
+        pnputil /delete-driver $old /uninstall /force
+        if ($LASTEXITCODE -ne 0) { throw "Could not remove $old (exit $LASTEXITCODE)" }
+    }
     $serviceKey = 'HKLM:\SYSTEM\CurrentControlSet\Services\AppleAgxAdmission'
-    New-Item -Path $serviceKey -Force | Out-Null
-    New-ItemProperty -Path $serviceKey -Name DisplayOwner -PropertyType DWord -Value 0 -Force | Out-Null
+    # An earlier installer left a DisplayOwner-only key. SetupAPI cannot query it as
+    # a service and fails AddService with ERROR_FILE_NOT_FOUND before DriverEntry.
+    if ((Test-Path $serviceKey) -and -not (Get-ItemProperty -Path $serviceKey).ImagePath) {
+        Remove-Item -Path $serviceKey -Recurse -Force
+    }
     # The KMD requires the one-shot G3Armed value (consumed on StartDevice); without it StartDevice
     # returns STATUS_NOT_SUPPORTED (Code 43). Arm right before the install starts the device.
     $dp = 'HKLM:\SYSTEM\CurrentControlSet\Enum\ACPI\APPL0002\0\Device Parameters'
@@ -58,6 +64,7 @@ if ($Action -eq 'install') {
     "armed G3Armed=1"
     pnputil /add-driver $inf /install
     "pnputil exit $LASTEXITCODE"
+    if ($LASTEXITCODE -ne 0) { throw "GPU install failed (exit $LASTEXITCODE)" }
     Start-Sleep -Seconds 15
     } finally { Stop-StartupTrace }
     $ps = (Get-Command powershell).Source

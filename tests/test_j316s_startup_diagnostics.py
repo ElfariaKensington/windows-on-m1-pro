@@ -26,6 +26,15 @@ class StartupDiagnosticsTests(unittest.TestCase):
         self.assertIn('WriteDword(key, L"Wom1LastQueryStatus", (ULONG)Status)', query)
         self.assertEqual(receipts.count('L"Wom1LastQueryStatus"'), 1)
 
+    def test_installer_leaves_service_creation_to_setupapi(self):
+        script = (GPU / 'j316s/gpu.ps1').read_text()
+        install = script.split("if ($Action -eq 'install') {", 1)[1].split("elseif", 1)[0]
+        self.assertNotIn('New-Item -Path $serviceKey', install)
+        self.assertNotIn('New-ItemProperty -Path $serviceKey', install)
+        self.assertLess(install.index('Remove-Item -Path $serviceKey'),
+                        install.index('pnputil /add-driver $inf /install'))
+        self.assertIn('if ($LASTEXITCODE -ne 0) { throw "GPU install failed', install)
+
     def test_powershell_parsing_and_profile_regression(self):
         pwsh = os.environ.get('PWSH') or shutil.which('pwsh')
         local = ROOT / '.build/tools/pwsh/pwsh'
