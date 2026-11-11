@@ -1,4 +1,15 @@
-## Current J316s checkpoint — KMD 2017 diagnostic candidate (2026-11-11)
+## Current J316s checkpoint — KMD 2017 installer corrected (2026-11-11)
+
+The two 2017 installs at 23:12:29 and 23:13:30 on the Windows clock did not
+reach DriverEntry. Both staged oem6.inf, then SetupAPI failed AddService with
+ERROR_FILE_NOT_FOUND (2). The service registry export contains only DisplayOwner,
+which gpu.ps1 had created before pnputil. Commit 6563b962 removes that precreation,
+deletes the orphan only when it has no ImagePath, and checks pnputil failures.
+Updated gpu.ps1 is staged on J316SOURCE, readback SHA256
+1242a6df59aa2348f1462f4c4032e0a90e8eff9568cdc494839fa4b85f6029d0;
+backup and receipt in .build/j316s-agx/live-logs. The 2017 driver binary is
+unchanged. No native install after this correction; GPU operation is unverified.
+Wi-Fi profile fix is staged, but native authentication remains unverified.
 
 2016 hardware remains Code 43 after StartDevice succeeds (stage 12), final query
 10, then RemoveDevice. The exact Windows rejection is NOT established. 2017
