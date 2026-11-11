@@ -1,16 +1,46 @@
 #include "../m1n1_windows/src/hv_agx_retained_root.h"
+#include "apple_agx_pa.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define PAGE 0x4000ULL
-#define ROOT_PA 0x900000000ULL
 #define VA 0xffffffa000000000ULL
 #define IPA 0x800000000ULL
-#define PA 0x810000000ULL
+#ifdef HV_AGX_PLATFORM_J316S
+#define DRAM_BASE (1ULL << 40)
+#define EXPECTED_CHIP 0x6000u
+#define EXPECTED_IO_RANGES 14u
+#define EXPECTED_IO_LEAVES 240u
+#else
+#define DRAM_BASE 0ULL
+#define EXPECTED_CHIP 0x8103u
+#define EXPECTED_IO_RANGES 10u
+#define EXPECTED_IO_LEAVES 77u
+#endif
+#define ROOT_PA (DRAM_BASE + 0x900000000ULL)
+#define PA (DRAM_BASE + 0x810000000ULL)
+#define TABLE_PA (DRAM_BASE + 0x820000000ULL)
 
 /* Independent literal native profile, including physical offset and guards. */
 static const AGX_FW_IO_DESCRIPTOR expected[25] = {
+#ifdef HV_AGX_PLATFORM_J316S
+    {0x404d00000, 0xffffffa068000000, 0x1c000, 0x1c000, 1},
+    {0x20e100000, 0xffffffa068020000, 0x4000, 0x4000, 0},
+    {0x28e104000, 0xffffffa068028000, 0x4000, 0x4000, 1},
+    {0x404000000, 0xffffffa068030000, 0x20000, 0x20000, 1},
+    {0}, {0}, {0},
+    {0x28e494000, 0xffffffa068054000, 0x1000, 0x1000, 0},
+    {0},
+    {0x404d80000, 0xffffffa06805c000, 0x8000, 0x8000, 1},
+    {0x204d61000, 0xffffffa068069000, 0x1000, 0x1000, 1},
+    {0x200000000, 0xffffffa068070000, 0x360000, 0xd8000, 1},
+    {0}, {0},
+    {0x2643c4000, 0xffffffa0683d4000, 0x1000, 0x1000, 1},
+    {0}, {0}, {0},
+    {0x28e3d0000, 0xffffffa0683dc000, 0x1000, 0x1000, 1},
+    {0x28e3c0000, 0xffffffa0683e4000, 0x2000, 0x2000, 0},
+#else
     {0x204d00000, 0xffffffa068000000, 0x1c000, 0x1c000, 1},
     {0x20e100000, 0xffffffa068020000, 0x4000, 0x4000, 0},
     {0x23b104000, 0xffffffa068028000, 0x4000, 0x4000, 1},
@@ -24,6 +54,7 @@ static const AGX_FW_IO_DESCRIPTOR expected[25] = {
     {0},
     {0x23b738000, 0xffffffa068154000, 0x1000, 0x1000, 1},
     {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0}, {0},
+#endif
 };
 
 struct fixture {
@@ -38,7 +69,7 @@ static unsigned char allocate(void *opaque, APPLE_AGX_UAT_PAGE *page)
     struct fixture *f = opaque;
     if (++f->allocated == f->fail_at)
         return 0;
-    page->PhysicalAddress = 0x820000000ULL + f->allocated * PAGE;
+    page->PhysicalAddress = TABLE_PA + f->allocated * PAGE;
     page->Entries = calloc(2048, sizeof(*page->Entries));
     assert(page->Entries);
     ++f->live;
@@ -50,7 +81,7 @@ static void release(void *opaque, const APPLE_AGX_UAT_PAGE *page)
     struct fixture *f = opaque;
     unsigned int i, j;
     /* No MMIO, Windows data, or retained firmware page belongs to the allocator. */
-    assert(page->PhysicalAddress > 0x820000000ULL && page->PhysicalAddress < ROOT_PA);
+    assert(page->PhysicalAddress > TABLE_PA && page->PhysicalAddress < ROOT_PA);
     assert(page->Entries != f->retained && f->syncs > f->last_release_sync);
     f->last_release_sync = f->syncs;
     for (i = 0; i < f->core.Inventory.PageCount; ++i) {
@@ -58,7 +89,7 @@ static void release(void *opaque, const APPLE_AGX_UAT_PAGE *page)
         if (p->Level + 1 != page->Level)
             continue;
         for (j = 0; j < (p->Level == 0 ? 8u : 2048u); ++j)
-            assert((p->Entries[j] & 0xffffffc000ULL) != page->PhysicalAddress);
+            assert((p->Entries[j] & APPLE_AGX_UAT_OA_MASK) != page->PhysicalAddress);
     }
     free(page->Entries);
     ++f->released;
@@ -81,7 +112,7 @@ static void sync_tables(void *opaque)
         return;
     for (i = 0; i < f->core.Inventory.PageCount; ++i) {
         APPLE_AGX_UAT_PAGE *p = &f->core.Pages[i];
-        if (p->Level == 2 && p->Entries[0] == (0x204d00000ULL | 0xc0000000000447ULL)) {
+        if (p->Level == 2 && p->Entries[0] == (expected[0].Phys | 0xc0000000000447ULL)) {
             p->Entries[0] ^= 4;
             f->corrupt_on_io_sync = 0;
             return;
@@ -148,6 +179,8 @@ static void check_io(struct fixture *f)
             continue;
         for (offset = 0; offset < length; offset += PAGE) {
             unsigned long long want = (d->Phys & ~(PAGE - 1)) + offset;
+            if (d->RangeSize < d->Size)
+                want += (offset / d->RangeSize) * (0x1000000ULL - d->RangeSize);
             assert(AppleAgxUatResolvePage(0, &f->core.Roots,
                 (d->Virt & ~(PAGE - 1)) + offset, &f->core.Inventory,
                 &pa, &descriptor) == AppleAgxUatResultOk);
@@ -158,7 +191,7 @@ static void check_io(struct fixture *f)
             (d->Virt & ~(PAGE - 1)) + length, &f->core.Inventory,
             &pa, &descriptor) == AppleAgxUatResultNotMapped);
     }
-    assert(leaves == 77);
+    assert(leaves == EXPECTED_IO_LEAVES);
 }
 
 static void production_lifetime(void)
@@ -177,7 +210,7 @@ static void production_lifetime(void)
         mappings = f.core.Inventory.MappingCount;
         assert(hv_agx_retained_io_prepare(&f.core, epoch) == 0);
         assert(f.allocated == allocations && f.core.Inventory.MappingCount == mappings);
-        assert(mappings == 211 && f.core.Inventory.PageCount <= 24);
+        assert(mappings == 201 + EXPECTED_IO_RANGES && f.core.Inventory.PageCount <= 24);
         assert(f.core.Roots.Ttbr0PhysicalAddress == root0);
         assert(f.core.SystemPage.PhysicalAddress == system);
         check_windows(&f, epoch);
@@ -225,7 +258,7 @@ static void manifest_and_foreign_requests(void)
     assert(hv_agx_retained_io_prepare(&f.core, 1) == 0);
     assert(hv_agx_retained_io_manifest(&f.core, 1, &manifest) == 0);
     assert(manifest.Magic == 0x4f495247 && manifest.Version == 1);
-    assert(manifest.Bytes == 864 && manifest.Chip == 0x8103);
+    assert(manifest.Bytes == 864 && manifest.Chip == EXPECTED_CHIP);
     assert(manifest.Epoch == 1 && manifest.Root == ROOT_PA);
     assert(manifest.Ready == 1 && manifest.Count == 25);
     assert(!manifest.Reserved[0] && !manifest.Reserved[1] && !manifest.Reserved[2]);
@@ -279,7 +312,8 @@ static void total_capacity(void)
     for (i = 199; i < 255; ++i)
         assert(hv_agx_retained_map(&f.core, 1, window_va(i), IPA + i * PAGE,
             PAGE, &handle) == 0);
-    assert(f.core.MappingCount == 256 && f.core.Inventory.MappingCount == 267);
+    assert(f.core.MappingCount == 256 &&
+           f.core.Inventory.MappingCount == 257 + EXPECTED_IO_RANGES);
     assert(hv_agx_retained_map(&f.core, 1, window_va(255), IPA + 255 * PAGE,
         PAGE, &handle) == HV_AGX_RETAINED_ALLOCATION);
     check_io(&f);
@@ -292,40 +326,50 @@ static void total_capacity(void)
 static void partial_setup(void)
 {
     unsigned int failure;
-    for (failure = 0; failure <= 10; ++failure) {
+    for (failure = 0; failure <= EXPECTED_IO_RANGES; ++failure) {
         struct fixture f;
         AGX_FW_IO_MANIFEST manifest;
-        unsigned int live, released, capacity, mapped, slot, seen;
+        unsigned int live, released, capacity, budget, mapped = 0, slot;
         unsigned long long pa, descriptor;
         start(&f);
         fill_windows(&f, 1);
         live = f.live;
         released = f.released;
         capacity = f.core.Inventory.MappingCapacity;
-        if (failure == 10)
+        if (failure == EXPECTED_IO_RANGES)
             f.fail_at = f.allocated + 1;
         else
             f.core.Inventory.MappingCapacity = f.core.Inventory.MappingCount + failure;
         assert(hv_agx_retained_io_prepare(&f.core, 1) == HV_AGX_RETAINED_ALLOCATION);
-        mapped = failure == 10 ? 0 : failure;
-        assert(f.core.Inventory.MappingCount == 201 + mapped);
-        assert(f.live == live + (mapped ? 1u : 0u) && f.released == released);
+        budget = failure == EXPECTED_IO_RANGES ? 0 : failure;
         assert(hv_agx_retained_io_manifest(&f.core, 1, &manifest) == HV_AGX_RETAINED_STATE);
         zero_manifest(&manifest);
         assert(hv_agx_retained_io_prepare(&f.core, 1) == HV_AGX_RETAINED_STATE);
         assert(hv_agx_retained_close(&f.core, 1, 0) == HV_AGX_RETAINED_STATE);
-        assert(f.core.Inventory.MappingCount == 201 + mapped && f.released == released);
-        seen = 0;
         for (slot = 0; slot < 25; ++slot) {
+            unsigned int ranges, index;
+            unsigned long long chunk;
+            int present;
             if (!expected[slot].Size)
                 continue;
-            assert(AppleAgxUatResolvePage(0, &f.core.Roots,
-                expected[slot].Virt & ~(PAGE - 1), &f.core.Inventory, &pa, &descriptor) ==
-                (seen < mapped ? AppleAgxUatResultOk : AppleAgxUatResultNotMapped));
-            if (seen < mapped)
-                assert(pa == (expected[slot].Phys & ~(PAGE - 1)));
-            ++seen;
+            ranges = expected[slot].Size / expected[slot].RangeSize;
+            chunk = ranges > 1 ? expected[slot].RangeSize : PAGE;
+            present = ranges <= budget - mapped;
+            if (present)
+                mapped += ranges;
+            else
+                budget = mapped;
+            for (index = 0; index < ranges; ++index) {
+                unsigned long long va = (expected[slot].Virt & ~(PAGE - 1)) + index * chunk;
+                assert(AppleAgxUatResolvePage(0, &f.core.Roots, va,
+                    &f.core.Inventory, &pa, &descriptor) ==
+                    (present ? AppleAgxUatResultOk : AppleAgxUatResultNotMapped));
+                if (present)
+                    assert(pa == (expected[slot].Phys & ~(PAGE - 1)) + index * 0x1000000ULL);
+            }
         }
+        assert(f.core.Inventory.MappingCount == 201 + mapped);
+        assert(f.live == live + (mapped ? 1u : 0u) && f.released == released);
         f.core.Inventory.MappingCapacity = capacity;
         f.fail_at = 0;
         check_windows(&f, 1);
@@ -377,7 +421,7 @@ static void require_tainted(struct fixture *f, unsigned int operation)
 }
 
 /* Missing validation of any IO leaf, native protection bit, or guard would
- * publish or retire a corrupt mapping. Exercise every one of the 77 leaves. */
+ * publish or retire a corrupt mapping. Exercise every leaf. */
 static void corrupted_io(void)
 {
     unsigned int operation, slot, n;
@@ -395,8 +439,8 @@ static void corrupted_io(void)
             start(&f);
             assert(hv_agx_retained_map(&f.core, 1, VA, IPA, PAGE, &h) == 0);
             assert(hv_agx_retained_io_prepare(&f.core, 1) == 0);
-            l1 = page_at(&f, f.retained[2] & 0xffffffc000ULL);
-            l2 = page_at(&f, l1->Entries[(va >> 25) & 2047] & 0xffffffc000ULL);
+            l1 = page_at(&f, f.retained[2] & APPLE_AGX_UAT_OA_MASK);
+            l2 = page_at(&f, l1->Entries[(va >> 25) & 2047] & APPLE_AGX_UAT_OA_MASK);
             entry = &l2->Entries[(va >> 14) & 2047];
             if (n == length / PAGE)
                 corrupt = 3; /* Guard must be zero, including invalid PA leaves. */
@@ -420,7 +464,7 @@ static void corrupted_io(void)
         start(&f);
         assert(hv_agx_retained_map(&f.core, 1, VA, IPA, PAGE, &h) == 0);
         assert(hv_agx_retained_io_prepare(&f.core, 1) == 0);
-        l1 = page_at(&f, f.retained[2] & 0xffffffc000ULL);
+        l1 = page_at(&f, f.retained[2] & APPLE_AGX_UAT_OA_MASK);
         entry = &l1->Entries[52];
         corrupt = n == 0 ? *entry & ~1ULL : n == 1 ? *entry | (1ULL << 55) :
                   n == 2 ? (ROOT_PA + PAGE) | 3ULL : f.core.Roots.Ttbr0PhysicalAddress | 3ULL;
@@ -463,8 +507,8 @@ static void corrupt_partial_close(void)
     assert(hv_agx_retained_io_prepare(&f.core, 1) == HV_AGX_RETAINED_ALLOCATION);
     f.core.Inventory.MappingCapacity = capacity;
     assert(!f.core.IoReady && f.core.IoMappedSlots);
-    l1 = page_at(&f, f.retained[2] & 0xffffffc000ULL);
-    l2 = page_at(&f, l1->Entries[52] & 0xffffffc000ULL);
+    l1 = page_at(&f, f.retained[2] & APPLE_AGX_UAT_OA_MASK);
+    l2 = page_at(&f, l1->Entries[52] & APPLE_AGX_UAT_OA_MASK);
     l2->Entries[0] ^= PAGE;
     require_tainted(&f, 2);
     discard_fixture(&f);
