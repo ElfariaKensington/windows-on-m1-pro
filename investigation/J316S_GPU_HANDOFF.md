@@ -1,16 +1,19 @@
 # J316s AGX bring-up: handoff (driver 30.0.2009.0, 2026-11-09)
 
-## State
-Driver loads (Code 43, not 39/crash). StartDevice passes: resources, G3Armed gate, UAT/memory start,
-power (GFX domain on), UAT ready, ASC CPU start, **gfx-handoff exchange OK** (firmware answers).
-Fails in provider bootstrap phase `ROOTS` (Wom1ProviderBootFailurePhase=2) after retained-root
-`Activate` succeeded (Wom1RetainedActivate flags 7, SystemVa 0xffffffa080000000, 0x4000).
-`Wom1FirmwareIoResult` is never written, so the failure is between Activate and
-`AgxFwIoReadManifest` in `AdmissionRetainedActivate` (backend_platform_windows.c): QueryArena(COMMAND),
-`AppleAgxInitdataMemoryApplyCommandArena`, `...BindRelocationObjects`, `AppleAgxApplyRelocations`.
-2009 records `Wom1ActivateStep` (0 gate,1 start,2 response,3 query,4 arena,5 apply,6 bind,7 reloc,8 done)
-+ `Wom1ActivateA/B` in `HKLM\SYSTEM\CurrentControlSet\Enum\ACPI\APPL0002\0\Device Parameters`. Read these first.
-Failure cleanup then returns STATUS_DEVICE_BUSY (retained firmware cannot be stopped); no BSOD since 2008.
+## State (2026-11-11)
+
+Build 30.0.2008.0 reached GPU power-on, ASC startup and a gfx-handoff
+response. The raw `Wom1RetainedActivate` receipt then returned
+`HV_AGX_RETAINED_OWNERSHIP` (status 4, flags 7). The installed GPU-003 loader
+used a 40-bit UAT table mask and dropped the high bits of T6000 physical
+addresses. The 42-bit rebuild returns status 0 in the host replay.
+See J316s-GPU-004 in [EXPERIMENTS.md](EXPERIMENTS.md) for build and rollback.
+
+Build 30.0.2009.0 records `Wom1ActivateStep` and `Wom1ActivateA/B` under
+`HKLM\SYSTEM\CurrentControlSet\Enum\ACPI\APPL0002\0\Device Parameters`.
+On the next Windows run, capture the raw activation receipt, the step
+(8 means arena adoption and relocation completed), firmware I/O and context-0
+receipts, and the adapter status.
 
 ## Known not done (will block rendering even after boot works)
 - Render template (apple_agx_render_template.generated.c) is a J313 single-cluster capture; T6000 needs

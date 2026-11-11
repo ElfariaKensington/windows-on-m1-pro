@@ -1,3 +1,19 @@
+## J316s GPU-004 (2026-11-11)
+
+GPU-003 contains a 40-bit UAT table lookup mask in the installed m1n1
+payload. The live retained root and table pages are above 1 TiB. Windows
+30.0.2008.0 recorded ACTIVATE status 4 and flags 7. The old mask reproduces
+that receipt in a host replay. With the 42-bit mask, activation and firmware
+I/O mapping succeed in the replay. T6000 MCache mapping and teardown also
+pass with partial setup and the full guest lease inventory.
+
+GPU-004 is built and verified offline. Its boot payload preserves the
+GPU-003 Mu firmware, setup media and launch flags. Its ESP and the exact
+GPU-003 recovery snapshot are pinned in `.build/j316s-gpu/J316s-GPU-004.build.json`.
+Next hardware checkpoint is one 30.0.2009.0 armed start with
+`Wom1RetainedActivate.Status=0`, then firmware I/O, context-0 and adapter
+status. See J316s-GPU-004 in EXPERIMENTS.md. Native result pending.
+
 ## J316s GPU-001 (2026-11-09): T6000 inventory probe installed, boot pending
 
 WHY CLEAN RECONSTRUCTION (unchanged): J313 stack is not portable as-is (40-bit
