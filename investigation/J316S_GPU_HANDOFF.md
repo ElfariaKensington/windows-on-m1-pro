@@ -9,11 +9,12 @@ used a 40-bit UAT table mask and dropped the high bits of T6000 physical
 addresses. The 42-bit rebuild returns status 0 in the host replay.
 See J316s-GPU-004 in [EXPERIMENTS.md](EXPERIMENTS.md) for build and rollback.
 
-Build 30.0.2009.0 records `Wom1ActivateStep` and `Wom1ActivateA/B` under
-`HKLM\SYSTEM\CurrentControlSet\Enum\ACPI\APPL0002\0\Device Parameters`.
-On the next Windows run, capture the raw activation receipt, the step
-(8 means arena adoption and relocation completed), firmware I/O and context-0
-receipts, and the adapter status.
+On GPU-004, build 30.0.2009.0 completed activation (step 8), firmware
+I/O, hwdata and all 207 context-0 maps. The shared 3-second deadline
+expired during 3.96 seconds of mapping, before the first RTKit send.
+Build 30.0.2010.0 has separate CPU, root publication and management
+deadlines on J316s. On the next run, check `Wom1RtkitHelloSeen`,
+`Wom1RtkitReceivedCount`, `Wom1RetainedManagementTrace`, and adapter status.
 
 ## Known not done (will block rendering even after boot works)
 - Render template (apple_agx_render_template.generated.c) is a J313 single-cluster capture; T6000 needs
