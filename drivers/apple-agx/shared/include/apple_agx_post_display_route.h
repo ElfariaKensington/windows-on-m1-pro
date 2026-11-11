@@ -20,8 +20,14 @@ static inline APPLE_AGX_POST_DISPLAY_ROUTE AppleAgxPostDisplayRoute(
   if (Width == 0u)
     return AppleAgxPostDisplayOwnScanout;
   if (PhysicalAddress == 0ULL || Width != APPLE_AGX_SCANOUT_J313_WIDTH ||
-      Height != APPLE_AGX_SCANOUT_J313_HEIGHT ||
       Pitch != APPLE_AGX_SCANOUT_J313_STRIDE)
+    return AppleAgxPostDisplayGeometryRejected;
+#ifdef APPLE_AGX_PLATFORM_J316S
+  /* Mu's 1728x1117 SimpleFB mode is distinct from the AGX scanout mode. */
+  if (Height == 1117u)
+    return AppleAgxPostDisplayAdoptPost;
+#endif
+  if (Height != APPLE_AGX_SCANOUT_J313_HEIGHT)
     return AppleAgxPostDisplayGeometryRejected;
   return AppleAgxPostDisplayAdoptPost;
 }

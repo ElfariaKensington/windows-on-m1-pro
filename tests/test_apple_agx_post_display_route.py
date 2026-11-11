@@ -23,17 +23,17 @@ class PostDisplayRouteTests(unittest.TestCase):
         self.assertIn("if (context->PostDisplayInformation.Width == 0u)", DISPLAY)
 
     def test_real_c_route(self):
-        with tempfile.TemporaryDirectory(prefix="post-display-route-") as tmp:
-            bitcode = Path(tmp) / "route.bc"
-            subprocess.run([
-                os.environ.get("CC", "clang"), "-std=c11", "-Wall", "-Wextra",
-                "-Werror", "-emit-llvm", "-c", "-I",
-                str(ROOT / "drivers/apple-agx/shared/include"),
-                str(ROOT / "tests/apple_agx_post_display_route_test.c"),
-                "-o", str(bitcode),
-            ], check=True)
-            subprocess.run([os.environ.get("LLI", "lli"), str(bitcode)],
-                           check=True, timeout=5)
+        for defines in ([], ["-DAPPLE_AGX_PLATFORM_J316S"]):
+            with self.subTest(defines=defines), tempfile.TemporaryDirectory() as tmp:
+                binary = Path(tmp) / "route"
+                subprocess.run([
+                    os.environ.get("CC", "clang"), "-std=c11", "-Wall", "-Wextra",
+                    "-Werror", *defines, "-I",
+                    str(ROOT / "drivers/apple-agx/shared/include"),
+                    str(ROOT / "tests/apple_agx_post_display_route_test.c"),
+                    "-o", str(binary),
+                ], check=True)
+                subprocess.run([str(binary)], check=True, timeout=5)
 
 
 if __name__ == "__main__":
