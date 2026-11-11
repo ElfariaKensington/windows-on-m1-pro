@@ -1,3 +1,88 @@
+## Current J316s checkpoint — KMD 2017 diagnostic candidate (2026-11-11)
+
+2016 hardware remains Code 43 after StartDevice succeeds (stage 12), final query
+10, then RemoveDevice. The exact Windows rejection is NOT established. 2017
+preserves Wom1LastQueryStatus across cleanup; the installer traces DxgKrnl,
+explicitly sets render-only, and no longer forces a graphics reset after the
+one-shot arm is consumed. No rendering or firmware fix is claimed. T6000 command
+images, real pixels and clean restart are still unqualified.
+
+Wi-Fi connection was rejected at profile import (0x80001). The corrected script
+uses passPhrase, preserves profiles on failed import and passes executed XML
+regressions. Native driver remains 0.10; authentication and connectivity need a
+Windows run. Manifest: .build/j316s-agx/render-only/manifest-2017.json.
+Staged and readback verified at 2026-11-11T18:47:01Z via native authorization.
+Next: Windows Install Apple GPU.cmd ONCE and J316WifiCx/Wi-Fi Connect.cmd.
+Collect startup-*.etl plus fresh registry/PnP and Wi-Fi logs after the run.
+See J316s-GPU-006-KMD-2017-DIAG in EXPERIMENTS.md.
+
+## J316s KMD 2016: FlipOnVSyncMmIo (2026-11-11)
+
+- 2015 hardware result (collect 22:55): DxgkInitialize OK (receipt 0), StartDevice OK, then Code 43
+  right after the QueryAdapterInfo 0x2f (NATIVE_FENCE/driver caps stage).
+- Root cause (dxgkrnl adapter-start validator 0x140105978, trace 0x2e4): "Driver reports WDDM
+  version 2.0 or higher but does not support FlipOnVSyncMmIo cap". Every non-ComputeOnly
+  WDDM 2.0+ adapter must set DRIVERCAPS.FlipCaps.FlipOnVSyncMmIo, render-only included.
+  2014/2015 render-only dropped FlipCaps entirely.
+- 2016: DRIVERCAPS always sets MaxQueuedFlipOnVSync=1 and FlipCaps.FlipOnVSyncMmIo=1;
+  FlipIndependent/SupportNonVGA/SmoothRotation/DirectFlip stay display-owner only.
+  Package .build/j316s-agx/package-30.0.2016.0 (SYS 5d49162f...a944), CURRENT -> 2016, staged
+  ::/AppleGPU, readback verified (stage-2016.receipt). Not verified on hardware.
+- If Code 43 persists: run collect-GPU-006.sh, read Wom1CleanQueryType (last query reached) and
+  keep walking validator 0x140105978 / render-core creation. Remaining error classes seen in
+  dxgkrnl: 0x2da WDDM1.2 render features need DRIVERCAPS WDDMVersion/PreemptionCaps/
+  SupportPerEngineTDR; 0x2f0 GetNodeMetadata; 0x2ff IoMmuSecureMode needs Begin/EndExclusiveAccess;
+  0x313 DirtyBitTracking; GpuMmu caps (VA bit count, page-table levels, PageDirectoryCount 2..N).
+
+## J316s KMD 2015: render-only that dxgkrnl accepts (2026-11-11)
+
+- 2014 hardware result (collect 22:52): Code 37 / 0xC0000059 -- `DxgkInitialize` itself returned
+  STATUS_REVISION_MISMATCH (receipt `Wom1CleanDxgkInitializeStatus`).
+- Root cause (dxgkrnl 26100 ARM64 disassembly, extracted from the Windows partition):
+  1. `DxgkInitialize` (0x140077540 path) requires NON-NULL AddDevice, Start, Stop, Remove,
+     DispatchIoRequest, InterruptRoutine, DpcRoutine, **QueryChildRelations, QueryChildStatus,
+     QueryDeviceDescriptor**, SetPowerState, ResetDevice, Unload. 2014 NULLed the three bold ones.
+  2. The post-StartDevice validator (0x1402118a0) takes the render-only branch when any of
+     IsSupportedVidPn / RecommendFunctionalVidPn / EnumVidPnCofuncModality /
+     SetVidPnSourceVisibility / CommitVidPn is NULL; it then requires SetPalette, SetPointer*,
+     SetVidPnSourceAddress, UpdateActiveVidPnPresentPath, RecommendMonitorModes, GetScanLine,
+     SetDisplayPrivateDriverFormat, SetTimingsFromVidPn, SetTargetGamma/ContentType/
+     AnalogCopyProtection and the MPO3 address DDI NULL, and StartDevice to report 0 sources
+     and 0 children ("Number of VidPn Source or Target are not 0 on render only adapter").
+     With display DDIs present it demands 1..16 sources AND >=1 child instead, which is why 2013
+     (full table, 0/0) died post-start with Code 43.
+  3. MCDM/ComputeOnly (DRIVERCAPS.MiscCaps bit 3) is a different, stricter path (Present,
+     ControlInterrupt, RenderKm... must be NULL; FormatHistoryBuffer, SetVirtualMachineData...
+     required). Not used.
+- 2015 = 2014 table but keeps QueryChildRelations/QueryChildStatus/QueryDeviceDescriptor (they
+  report no children). Package .build/j316s-agx/package-30.0.2015.0 (SYS 5c610bdd...4689), staged
+  ::/AppleGPU, readback verified (stage-2015.receipt). Not verified on hardware.
+
+## J316s KMD 2014: true render-only (2026-11-11)
+
+- 2013 evidence (collect 22:44): StartDevice OK, every adapter-level QueryAdapterInfo
+  answered (last = type 10), then dxgkrnl failed the adapter post-start (Code 43). 2013 still
+  registered all display DDIs (VidPn, children, SetVidPnSourceAddress, overlays) while
+  reporting 0 sources/children, so dxgkrnl treated it as a display adapter with no outputs.
+- 2014 reads `DisplayOwner` from the service key in DriverEntry (absent/0 = render-only) and
+  then registers NO display DDIs; render-only DRIVERCAPS drop flip/NonVGA/direct-flip caps.
+  `reg add HKLM\SYSTEM\CurrentControlSet\Services\AppleAgxAdmission /v DisplayOwner /t REG_DWORD /d 1`
+  restores display ownership (old device-key value is ignored). Receipt `Wom1CleanRenderOnlyMode`.
+- gpu.ps1 install now runs Restore-Display (Win+Ctrl+Shift+B + DisplaySwitch /internal).
+- Not verified on hardware. dxdiag "Current Mode: Unknown" for Basic Display occurs in many
+  earlier runs, so it is not proof of a blank panel.
+
+## J316s KMD 2013: render-only (2026-11-11)
+
+- GPU-006/2012 started cleanly and the first source address succeeded
+  (status 0), but the panel stayed black: the adapter owned the display while
+  T6000 rendering is unqualified. KMD 2013 starts render-only by default:
+  no POST display ownership, no scanout, 0 VidPn sources/children, so
+  ROOT\BasicDisplay keeps the screen. DisplayOwner=1 (device key) restores
+  display ownership. Staged to J316SOURCE; run Install Apple GPU.cmd.
+- Still open: T6000 render command image (multi-cluster), then display
+  ownership can be re-enabled. See EXPERIMENTS.md "GPU-006 result and KMD 2013".
+
 ## J316s GPU-006 and KMD 2012 (2026-11-11)
 
 - GPU-005/2011 reached Windows PnP Started, POST route AdoptPost and
