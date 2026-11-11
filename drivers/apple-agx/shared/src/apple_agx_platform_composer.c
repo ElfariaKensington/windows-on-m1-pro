@@ -21,6 +21,8 @@ static APPLE_AGX_FW_U64 fw_now(void *Context) {
 FW_SIMPLE(fw_power_on, PowerOn)
 FW_SIMPLE(fw_create_uat, CreateFirmwareUat)
 FW_SIMPLE(fw_boot_asc, BootAsc)
+FW_SIMPLE(fw_publish_boot_roots, PublishBootRoots)
+FW_SIMPLE(fw_complete_management, CompleteManagementBootstrap)
 FW_SIMPLE(fw_device_control, SendDeviceControlInit)
 FW_SIMPLE(fw_idle_timestamp, UpdateIdleTimestamp)
 FW_SIMPLE(fw_unpublish, UnpublishInitdata)
@@ -187,6 +189,12 @@ APPLE_AGX_BACKEND_BOOL AppleAgxPlatformComposerInitialize(
   Io->Firmware.PowerOn = fw_power_on;
   Io->Firmware.CreateFirmwareUat = fw_create_uat;
   Io->Firmware.BootAsc = fw_boot_asc;
+  Io->Firmware.BootRootsTimeoutMs = Composer->Firmware.BootRootsTimeoutMs;
+  Io->Firmware.PublishBootRoots = Composer->Firmware.PublishBootRoots
+      ? fw_publish_boot_roots : COMPOSER_NULL;
+  Io->Firmware.CompleteManagementBootstrap =
+      Composer->Firmware.CompleteManagementBootstrap
+          ? fw_complete_management : COMPOSER_NULL;
   Io->Firmware.StartEndpoint = fw_endpoint;
   Io->Firmware.PublishInitdata = fw_publish;
   Io->Firmware.SendInitdata = fw_send;

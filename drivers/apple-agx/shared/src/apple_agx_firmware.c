@@ -22,6 +22,9 @@ AppleAgxFirmwareIoValid(const APPLE_AGX_FIRMWARE_IO *Io) {
          Io->PowerOn != APPLE_AGX_FW_NULL &&
          Io->CreateFirmwareUat != APPLE_AGX_FW_NULL &&
          Io->BootAsc != APPLE_AGX_FW_NULL &&
+         (!Io->BootRootsTimeoutMs ||
+          (Io->PublishBootRoots != APPLE_AGX_FW_NULL &&
+           Io->CompleteManagementBootstrap != APPLE_AGX_FW_NULL)) &&
          Io->StartEndpoint != APPLE_AGX_FW_NULL &&
          Io->PublishInitdata != APPLE_AGX_FW_NULL &&
          Io->SendInitdata != APPLE_AGX_FW_NULL &&
@@ -122,7 +125,7 @@ void AppleAgxFirmwareFail(APPLE_AGX_FIRMWARE *Firmware,
                              : Result;
 }
 
-#define APPLE_AGX_START_SIMPLE(Callback, Timeout, Phase, Bit)               \
+#define APPLE_AGX_START_TIMED(Callback, Timeout)                            \
   do {                                                                      \
     result = AppleAgxFirmwareBeginDeadline(Io, (Timeout), &start_ms,         \
                                            &deadline_ms);                    \
@@ -131,6 +134,11 @@ void AppleAgxFirmwareFail(APPLE_AGX_FIRMWARE *Firmware,
           Io, start_ms, deadline_ms, (Callback)(Io->Context, deadline_ms));  \
     if (result != AppleAgxFirmwareResultOk)                                 \
       return AppleAgxFirmwareAbortStart(Firmware, Io, result);              \
+  } while (0)
+
+#define APPLE_AGX_START_SIMPLE(Callback, Timeout, Phase, Bit)               \
+  do {                                                                      \
+    APPLE_AGX_START_TIMED(Callback, Timeout);                                \
     AppleAgxFirmwareComplete(Firmware, Io, (Phase), (Bit));                 \
   } while (0)
 
@@ -154,9 +162,14 @@ APPLE_AGX_FIRMWARE_RESULT AppleAgxFirmwareStart(
                          APPLE_AGX_FIRMWARE_UAT_READY);
   /* Boot may acquire CPU/root ownership before a later primitive fails. */
   Firmware->CleanupMask |= APPLE_AGX_FIRMWARE_ASC_RUNNING;
-  APPLE_AGX_START_SIMPLE(Io->BootAsc, J313_AGX_G2_ASC_BOOT_TIMEOUT_MS,
-                         AppleAgxFirmwareAscRunning,
-                         APPLE_AGX_FIRMWARE_ASC_RUNNING);
+  APPLE_AGX_START_TIMED(Io->BootAsc, J313_AGX_G2_ASC_BOOT_TIMEOUT_MS);
+  if (Io->BootRootsTimeoutMs) {
+    APPLE_AGX_START_TIMED(Io->PublishBootRoots, Io->BootRootsTimeoutMs);
+    APPLE_AGX_START_TIMED(Io->CompleteManagementBootstrap,
+                          J313_AGX_G2_ASC_BOOT_TIMEOUT_MS);
+  }
+  AppleAgxFirmwareComplete(Firmware, Io, AppleAgxFirmwareAscRunning,
+                           APPLE_AGX_FIRMWARE_ASC_RUNNING);
 
   result = AppleAgxFirmwareBeginDeadline(
       Io, J313_AGX_G2_ENDPOINT_TIMEOUT_MS, &start_ms, &deadline_ms);

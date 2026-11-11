@@ -90,6 +90,43 @@ static void record_boot(APPLE_AGX_FIRMWARE_PROVIDER *provider,
                                                phase, success, provider->State);
 }
 
+static APPLE_AGX_FW_BOOL provider_publish_boot_roots(
+    void *context, APPLE_AGX_FW_U64 deadline) {
+  APPLE_AGX_FIRMWARE_PROVIDER *provider = context;
+  unsigned char success;
+  if (!at_passive(provider) ||
+      provider->State != (APPLE_AGX_FIRMWARE_PROVIDER_INITIALIZED |
+                          APPLE_AGX_FIRMWARE_PROVIDER_POWERED |
+                          APPLE_AGX_FIRMWARE_PROVIDER_UAT |
+                          APPLE_AGX_FIRMWARE_PROVIDER_ASC))
+    return APPLE_AGX_FW_FALSE;
+  success = acquire_handoff(provider, deadline);
+  if (success) {
+    success = provider->Primitives.PublishUatRoots(
+        provider->Primitives.Context, &provider->Pair);
+    if (success)
+      provider->State |= APPLE_AGX_FIRMWARE_PROVIDER_PUBLISHED;
+    if (!release_handoff(provider))
+      success = 0u;
+  }
+  record_boot(provider, APPLE_AGX_PROVIDER_BOOT_ROOTS, success);
+  return success;
+}
+
+static APPLE_AGX_FW_BOOL provider_complete_management(
+    void *context, APPLE_AGX_FW_U64 deadline) {
+  APPLE_AGX_FIRMWARE_PROVIDER *provider = context;
+  unsigned char success;
+  if (!at_passive(provider) ||
+      !(provider->State & APPLE_AGX_FIRMWARE_PROVIDER_PUBLISHED) ||
+      provider->Primitives.CompleteManagementBootstrap == APPLE_AGX_PROVIDER_NULL)
+    return APPLE_AGX_FW_FALSE;
+  success = provider->Primitives.CompleteManagementBootstrap(
+      provider->Primitives.Context, deadline);
+  record_boot(provider, APPLE_AGX_PROVIDER_BOOT_MANAGEMENT, success);
+  return success;
+}
+
 static APPLE_AGX_FW_BOOL provider_boot_asc(void *context,
                                            APPLE_AGX_FW_U64 deadline) {
   APPLE_AGX_FIRMWARE_PROVIDER *provider = context;
@@ -114,25 +151,9 @@ static APPLE_AGX_FW_BOOL provider_boot_asc(void *context,
   if (handoff_result != AppleAgxGfxHandoffResultOk)
     return APPLE_AGX_FW_FALSE;
   if (provider->Primitives.CompleteManagementBootstrap !=
-      APPLE_AGX_PROVIDER_NULL) {
-    success = acquire_handoff(provider, deadline);
-    if (success) {
-      success = provider->Primitives.PublishUatRoots(
-          provider->Primitives.Context, &provider->Pair);
-      if (success)
-        provider->State |= APPLE_AGX_FIRMWARE_PROVIDER_PUBLISHED;
-      if (!release_handoff(provider))
-        success = 0u;
-    }
-    record_boot(provider, APPLE_AGX_PROVIDER_BOOT_ROOTS, success);
-    if (!success)
-      return APPLE_AGX_FW_FALSE;
-    success = provider->Primitives.CompleteManagementBootstrap(
-        provider->Primitives.Context, deadline);
-    record_boot(provider, APPLE_AGX_PROVIDER_BOOT_MANAGEMENT, success);
-    if (!success)
-      return APPLE_AGX_FW_FALSE;
-  }
+          APPLE_AGX_PROVIDER_NULL && !provider->Primitives.BootRootsTimeoutMs)
+    return provider_publish_boot_roots(provider, deadline) &&
+           provider_complete_management(provider, deadline);
   return APPLE_AGX_FW_TRUE;
 }
 
@@ -368,6 +389,8 @@ APPLE_AGX_FIRMWARE_PROVIDER_RESULT AppleAgxFirmwareProviderInitialize(
     APPLE_AGX_FIRMWARE_IO *firmware_io) {
   if (provider == APPLE_AGX_PROVIDER_NULL ||
       firmware_io == APPLE_AGX_PROVIDER_NULL || !primitives_valid(primitives) ||
+      (primitives->BootRootsTimeoutMs &&
+       primitives->CompleteManagementBootstrap == APPLE_AGX_PROVIDER_NULL) ||
       handoff == APPLE_AGX_PROVIDER_NULL || handoff->Bound == 0u ||
       handoff->Locked != 0u || provider->State != 0u ||
       !primitives->IsPassiveLevel(primitives->Context))
@@ -397,6 +420,11 @@ APPLE_AGX_FIRMWARE_PROVIDER_RESULT AppleAgxFirmwareProviderInitialize(
   firmware_io->DestroyFirmwareUat = provider_destroy_uat;
   firmware_io->PowerOff = provider_power_off;
   firmware_io->RecordPhase = APPLE_AGX_PROVIDER_NULL;
+  firmware_io->BootRootsTimeoutMs = primitives->BootRootsTimeoutMs;
+  firmware_io->PublishBootRoots = primitives->BootRootsTimeoutMs
+      ? provider_publish_boot_roots : APPLE_AGX_PROVIDER_NULL;
+  firmware_io->CompleteManagementBootstrap = primitives->BootRootsTimeoutMs
+      ? provider_complete_management : APPLE_AGX_PROVIDER_NULL;
   return AppleAgxFirmwareProviderResultOk;
 }
 

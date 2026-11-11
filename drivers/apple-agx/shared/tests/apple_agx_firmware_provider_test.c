@@ -21,6 +21,8 @@ typedef struct _FAKE_PLATFORM {
   unsigned int PublishCount;
   unsigned int UnpublishCount;
   unsigned long long NowMs;
+  unsigned int RootPublicationMs;
+  unsigned long long ManagementBudgetMs;
   unsigned long long LastPowerOffDeadline;
   unsigned char Handoff[J313_AGX_G2_HANDOFF_SIZE];
 } FAKE_PLATFORM;
@@ -150,6 +152,7 @@ static unsigned char publish_roots(void *context,
     return 0u;
   fake->RootsPublished = 1u;
   ++fake->PublishCount;
+  fake->NowMs += fake->RootPublicationMs;
   return 1u;
 }
 
@@ -492,12 +495,42 @@ static void test_handoff_timeout_is_after_asc_boot(void) {
 static unsigned char complete_management(void *context,
                                           unsigned long long deadline) {
   FAKE_PLATFORM *fake = context;
-  assert(fake->NowMs <= deadline);
+  if (fake->NowMs > deadline)
+    return 0u;
+  fake->ManagementBudgetMs = deadline - fake->NowMs;
   assert(fake->AscRunning && fake->RootsPublished);
   assert(fake->PublishCount == 1u);
   assert(fake->Handoff[APPLE_AGX_GFX_HANDOFF_LOCK_AP_OFFSET] == 0u);
   ++fake->ManagementCount;
   return !fake->FailManagement;
+}
+
+static void test_retained_root_work_has_its_own_deadline(void) {
+  unsigned int too_slow;
+  for (too_slow = 0; too_slow <= 1; ++too_slow) {
+    FAKE_PLATFORM fake = {.Passive = 1u, .PublishHandoffMagicOnAscBoot = 1u,
+                         .RequireManagement = 1u,
+                         .RootPublicationMs = too_slow ? 6001u : 3962u};
+    APPLE_AGX_GFX_HANDOFF_STATE handoff = bind_uninitialized_handoff(&fake);
+    APPLE_AGX_FIRMWARE_PROVIDER_PRIMITIVES ops = primitives(&fake);
+    APPLE_AGX_FIRMWARE_PROVIDER provider = {0};
+    APPLE_AGX_FIRMWARE_IO io = {0};
+    APPLE_AGX_FIRMWARE firmware;
+    ops.CompleteManagementBootstrap = complete_management;
+    ops.RetireMappingsAfterAscStop = 1u;
+    ops.BootRootsTimeoutMs = 6000u;
+    fake.ExpectPublishedAtStop = 1u;
+    assert(AppleAgxFirmwareProviderInitialize(&provider, &ops, &handoff, &io) ==
+           AppleAgxFirmwareProviderResultOk);
+    AppleAgxFirmwareInitialize(&firmware);
+    assert(AppleAgxFirmwareStart(&firmware, &io) ==
+           (too_slow ? AppleAgxFirmwareResultTimeout : AppleAgxFirmwareResultOk));
+    assert(fake.ManagementCount == (too_slow ? 0u : 1u));
+    if (!too_slow)
+      assert(fake.ManagementBudgetMs == J313_AGX_G2_ASC_BOOT_TIMEOUT_MS);
+    assert(AppleAgxFirmwareRollback(&firmware, &io) == AppleAgxFirmwareResultOk);
+    assert(!fake.RootsPublished && !fake.AscRunning && !fake.Powered);
+  }
 }
 
 static void test_split_bootstrap_owns_early_roots_and_failed_cleanup(void) {
@@ -560,6 +593,7 @@ static void test_broker_mappings_live_until_asc_stops(void) {
 }
 
 int main(void) {
+  test_retained_root_work_has_its_own_deadline();
   test_broker_mappings_live_until_asc_stops();
   test_split_bootstrap_owns_early_roots_and_failed_cleanup();
   test_exact_semantics_are_ready();

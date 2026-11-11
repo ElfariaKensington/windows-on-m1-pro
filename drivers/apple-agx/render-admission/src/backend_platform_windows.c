@@ -4833,6 +4833,10 @@ _Use_decl_annotations_ NTSTATUS AdmissionPlatformRuntimeStart(
   runtime->FirmwarePrimitives.BootAsc = AdmissionFirmwareBootAsc;
   runtime->FirmwarePrimitives.CompleteManagementBootstrap =
       AdmissionFirmwareCompleteManagement;
+#ifdef APPLE_AGX_PLATFORM_J316S
+  /* GPU-004 measured 3.96 s for 207 context-0 maps and readbacks. */
+  runtime->FirmwarePrimitives.BootRootsTimeoutMs = 6000u;
+#endif
   runtime->FirmwarePrimitives.RecordBootstrapPhase =
       AdmissionFirmwareRecordBootstrap;
   runtime->FirmwarePrimitives.StopAsc = AdmissionFirmwareStopAsc;

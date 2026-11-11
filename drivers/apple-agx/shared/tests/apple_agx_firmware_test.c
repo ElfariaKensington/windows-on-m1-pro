@@ -199,6 +199,7 @@ static APPLE_AGX_FIRMWARE_IO make_io(FAKE_TRANSPORT *fake) {
       destroy_uat,
       power_off,
       record_phase,
+      0u, 0, 0,
   };
   return io;
 }

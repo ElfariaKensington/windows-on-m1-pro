@@ -155,6 +155,9 @@ int main(void) {
   assert(AppleAgxPlatformComposerInitialize(&composer_state, &config,
                                              &combined));
   assert(combined.Firmware.NowMs(combined.Context) == 10u);
+  assert(!combined.Firmware.BootRootsTimeoutMs &&
+         !combined.Firmware.PublishBootRoots &&
+         !combined.Firmware.CompleteManagementBootstrap);
   assert(combined.Firmware.PowerOn(combined.Context, 10u));
   assert(combined.RenderContext.Publish(combined.Context));
   assert(combined.Queues.Create(combined.Context));
@@ -169,14 +172,22 @@ int main(void) {
     APPLE_AGX_PLATFORM_COMPOSER compute_state;
     APPLE_AGX_BACKEND_IO compute_combined;
     APPLE_AGX_BACKEND_IO compute_queues = queues;
+    APPLE_AGX_FIRMWARE_IO retained_firmware = firmware;
     APPLE_AGX_PLATFORM_COMPOSER_CONFIG compute_config = config;
     memset(&compute_state, 0, sizeof(compute_state));
     memset(&compute_combined, 0, sizeof(compute_combined));
     compute_queues.Queues.RunCompute = queue_run;
     compute_config.Queues = &compute_queues;
+    retained_firmware.BootRootsTimeoutMs = 6000u;
+    retained_firmware.PublishBootRoots = fw_simple;
+    retained_firmware.CompleteManagementBootstrap = fw_simple;
+    compute_config.Firmware = &retained_firmware;
     assert(AppleAgxPlatformComposerInitialize(&compute_state, &compute_config,
                                                &compute_combined));
     assert(compute_combined.Queues.RunCompute(compute_combined.Context, &job, 8u));
+    assert(compute_combined.Firmware.BootRootsTimeoutMs == 6000u);
+    assert(compute_combined.Firmware.PublishBootRoots(compute_combined.Context, 6010u));
+    assert(compute_combined.Firmware.CompleteManagementBootstrap(compute_combined.Context, 3010u));
     assert(fake.QueueCalls == 3u);
     fake.QueueCalls = 2u;
   }

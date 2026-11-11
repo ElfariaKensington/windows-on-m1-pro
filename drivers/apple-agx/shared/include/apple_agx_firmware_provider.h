@@ -74,6 +74,8 @@ typedef struct _APPLE_AGX_FIRMWARE_PROVIDER_PRIMITIVES {
                                          unsigned long long DeadlineMs);
   unsigned char (*UpdateIdleTimestamp)(void *Context,
                                        unsigned long long DeadlineMs);
+  /* Zero keeps CPU, roots and management on the existing shared deadline. */
+  unsigned int BootRootsTimeoutMs;
 } APPLE_AGX_FIRMWARE_PROVIDER_PRIMITIVES;
 
 typedef struct _APPLE_AGX_FIRMWARE_PROVIDER {

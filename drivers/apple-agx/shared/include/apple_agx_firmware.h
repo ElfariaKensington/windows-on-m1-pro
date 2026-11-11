@@ -93,6 +93,12 @@ typedef struct _APPLE_AGX_FIRMWARE_IO {
   void (*RecordPhase)(void *Context, APPLE_AGX_FIRMWARE_PHASE Phase,
                       APPLE_AGX_FIRMWARE_RESULT Result,
                       APPLE_AGX_FW_U32 CompletedMask);
+  /* Optional retained-root startup with a separate host publication budget. */
+  APPLE_AGX_FW_U32 BootRootsTimeoutMs;
+  APPLE_AGX_FW_BOOL (*PublishBootRoots)(void *Context,
+                                        APPLE_AGX_FW_U64 DeadlineMs);
+  APPLE_AGX_FW_BOOL (*CompleteManagementBootstrap)(void *Context,
+                                                   APPLE_AGX_FW_U64 DeadlineMs);
 } APPLE_AGX_FIRMWARE_IO;
 
 void AppleAgxFirmwareInitialize(APPLE_AGX_FIRMWARE *Firmware);
